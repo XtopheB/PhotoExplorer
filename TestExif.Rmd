@@ -1,0 +1,134 @@
+---
+title: "ExifFromPictures"
+author: "Christophe Bontemps"
+date: "2023-01-29"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r libraries}
+library(exifr)
+library(dplyr)
+library(leaflet)
+```
+
+
+```{r exiftoolconfig}
+#May be needed to find exiftool (in Windows directory or anywhere in the path)
+# From https://exiftool.org/install.html
+
+# library(exiftoolr)
+# configure_exiftoolr()
+```
+# Extract exif data from pictures
+Once exiftool is correctly installed, one ca collect all the information! 
+
+```{r exifextraction}
+DirFiles <-  "c:/temp/Photos/Toto"
+mypattern  <- "*.jpg|*.JPG|*.PNG|*.MP4|*.MOV"
+myjpg <- list.files(path = DirFiles, pattern = mypattern )
+
+files <- list.files(path = DirFiles,
+                    recursive=TRUE,
+                    pattern = mypattern, full.names=TRUE)
+exifinfo <- read_exif(files, quiet = FALSE)
+```
+
+
+
+```{r subset }
+
+# Using the data 
+# https://www.r-bloggers.com/2016/11/extracting-exif-data-from-photos-using-r/
+# and https://www.r-bloggers.com/2016/11/create-an-interactive-web-map-with-geotagged-photos/
+mydat <- exifinfo %>%
+  select(
+    SourceFile, FileName, FileModifyDate, DateTimeOriginal,
+    GPSLongitude, GPSLatitude, GPSAltitude)
+
+```
+
+# Collecting country information 
+
+```{r CountryInfo}
+library(lubridate)
+library(maps)
+
+# Adding date 
+mydat <- mydat %>%
+  mutate(DateTimeOriginal = ifelse(is.na(DateTimeOriginal),
+                                   FileModifyDate, DateTimeOriginal)) %>%
+  mutate(Date = ymd_hms(DateTimeOriginal)
+  ) %>%
+  arrange(Date) %>%
+ tidyr::separate(Date, c("Year", "rest"), extra = "merge", fill = "left")  %>%
+ tidyr::separate(rest, c("Month", "rest2"), extra = "merge", fill = "left") %>%
+ tidyr::separate(rest2, c("Day", "Time"),  extra = "merge", fill = "left") %>%
+ mutate( newname = paste0(Year,"-",Month, "-", Day, "-",  FileName))
+
+
+
+#  Pictures with GPS 
+mydatGPS <- mydat %>%
+  filter(!is.na(GPSLatitude)) %>%
+  mutate(Country = maps::map.where(database="world", GPSLongitude, GPSLatitude),
+         Dept = maps::map.where(database="france", GPSLongitude, GPSLatitude)) %>%
+  tidyr::extract(Country, c("Countryshort", "Region"),
+                 regex = "([[:alnum:]]+):([[:alnum:]]+)",
+                 remove = FALSE)%>%
+  mutate(Country = ifelse(!is.na(Countryshort) , Countryshort, Country), 
+         Region = ifelse(!is.na(Dept) , Dept, Region) ) %>%
+  select( !c("Countryshort", "Dept"))
+  
+  
+```
+
+> we have `r nrow(mydat)` pictures in the directory XXXX, and  `r nrow(mydatGPS)` with country location. 
+
+
+# Renaming and Moving pictures to directories
+
+```{r GPS moving}
+mydatGPS <-  mydatGPS  %>%
+  mutate(
+         newdir = case_when(is.na(Country)  ~ paste0(Year, "-",Month),
+                            !is.na(Country) & is.na(Region) ~ paste0(Year, "-", Country),
+                            !is.na(Country) & !is.na(Region) ~ paste0(Year, "-", Region)))
+
+
+
+
+
+```
+
+
+
+
+# Interactive map with leaflet
+
+```{r}
+leaflet(mydat) %>%
+addProviderTiles("Esri.WorldImagery") %>%
+addMarkers(~ GPSLongitude, ~ GPSLatitude)  
+```
+
+
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
