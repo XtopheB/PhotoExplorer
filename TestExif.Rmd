@@ -62,7 +62,8 @@ library(maps)
 # Adding date 
 mydat <- mydat %>%
   mutate(DateTimeOriginal = ifelse(is.na(DateTimeOriginal),
-                                   FileModifyDate, DateTimeOriginal)) %>%
+                                   FileModifyDate,
+                                   DateTimeOriginal)) %>%
   mutate(Date = ymd_hms(DateTimeOriginal)
   ) %>%
   arrange(Date) %>%
@@ -73,16 +74,18 @@ mydat <- mydat %>%
 
 
 
-#  Pictures with GPS 
-mydatGPS <- mydat %>%
-  filter(!is.na(GPSLatitude)) %>%
-  mutate(Country = maps::map.where(database="world", GPSLongitude, GPSLatitude),
-         Dept = maps::map.where(database="france", GPSLongitude, GPSLatitude)) %>%
+# Adding Countries from  GPS 
+mydat <- mydat %>%
+  mutate(GPSLongitude =  ifelse(is.na(GPSLatitude), 0 ,GPSLongitude),
+         GPSLatitude =  ifelse(is.na(GPSLatitude), 0 ,GPSLatitude)) %>%
+  mutate(Country = maps::map.where(database="world", GPSLongitude, GPSLatitude, na.rm=TRUE),
+         Dept = maps::map.where(database="france", GPSLongitude, GPSLatitude, na.rm=TRUE)) %>%
   tidyr::extract(Country, c("Countryshort", "Region"),
                  regex = "([[:alnum:]]+):([[:alnum:]]+)",
                  remove = FALSE)%>%
   mutate(Country = ifelse(!is.na(Countryshort) , Countryshort, Country), 
          Region = ifelse(!is.na(Dept) , Dept, Region) ) %>%
+  mutate(Country = ifelse(GPSAltitude >1700, "P2000", Country)) %>%
   select( !c("Countryshort", "Dept"))
   
   
@@ -94,7 +97,7 @@ mydatGPS <- mydat %>%
 # Renaming and Moving pictures to directories
 
 ```{r GPS moving}
-mydatGPS <-  mydatGPS  %>%
+mydat <-  mydat  %>%
   mutate(
          newdir = case_when(is.na(Country)  ~ paste0(Year, "-",Month),
                             !is.na(Country) & is.na(Region) ~ paste0(Year, "-", Country),
@@ -102,11 +105,25 @@ mydatGPS <-  mydatGPS  %>%
 
 
 
+```
+
+```{r}
+frompath <- "c:/Temp/Photos/Toto/"
+topath <- "c:/Temp/Photos/Titi/"
+
+for(i in 1:nrow(mydat)) {       # for-loop over rows
+   # Create directory if doesn't exist 
+   ifelse(dir.exists(paste0(topath, mydat[i, "newdir"])), FALSE,
+          dir.create(paste0(topath, mydat[i, "newdir"]), recursive = TRUE))
+  
+  # Copy file
+  file.copy(from = paste0(frompath, mydat[i, "FileName"]), 
+            to = paste0(topath, mydat[i, "newdir"],"/", mydat[i, "newname"]))
+  
+}
 
 
 ```
-
-
 
 
 # Interactive map with leaflet
@@ -118,17 +135,3 @@ addMarkers(~ GPSLongitude, ~ GPSLatitude)
 ```
 
 
-
-```{r cars}
-summary(cars)
-```
-
-## Including Plots
-
-You can also embed plots, for example:
-
-```{r pressure, echo=FALSE}
-plot(pressure)
-```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
