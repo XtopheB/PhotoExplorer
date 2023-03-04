@@ -2,7 +2,9 @@
 title: "ExifFromPictures"
 author: "Christophe Bontemps"
 date: "2023-01-29"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -15,6 +17,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(exifr)
 library(dplyr)
 library(leaflet)
+library("vtable")
 ```
 
 
@@ -25,42 +28,59 @@ library(leaflet)
 # library(exiftoolr)
 # configure_exiftoolr()
 ```
-# Extract exif data from pictures
-Once exiftool is correctly installed, one ca collect all the information! 
 
-```{r exifextraction}
-DirFiles <-  "c:/temp/Photos/Toto"
+### Source and destination
+One idea would be also to do batches of transferts
+
+```{r paths}
+# Source directory
+SourceDir <-  "c:/temp/Photos/Toto"
 mypattern  <- "*.jpg|*.JPG|*.PNG|*.MP4|*.MOV"
-myjpg <- list.files(path = DirFiles, pattern = mypattern )
 
-files <- list.files(path = DirFiles,
-                    recursive=TRUE,
-                    pattern = mypattern, full.names=TRUE)
-exifinfo <- read_exif(files, quiet = FALSE)
+# Destination 
+ToDir <- "c:/Temp/Photos/Titi/"
+
 ```
 
+# Extract exif data from pictures
+Once exiftool is correctly installed, one can collect all the information! 
 
 
-```{r subset }
+```{r exifextraction, cache = TRUE}
+
+myjpg <- list.files(path = SourceDir, pattern = mypattern )
+files <- list.files(path = SourceDir,
+                    recursive=TRUE,
+                    pattern = mypattern, full.names=TRUE)
+
+# This is long 
+exifinfo <- read_exif(files, quiet = TRUE)
+```
+
+## Refining the information
+
+```{r selecting variables }
 
 # Using the data 
 # https://www.r-bloggers.com/2016/11/extracting-exif-data-from-photos-using-r/
 # and https://www.r-bloggers.com/2016/11/create-an-interactive-web-map-with-geotagged-photos/
-mydat <- exifinfo %>%
+
+exifdat <- exifinfo %>%
   select(
-    SourceFile, FileName, FileModifyDate, DateTimeOriginal,
+    SourceFile, FileName, FileType, FileModifyDate, DateTimeOriginal,
     GPSLongitude, GPSLatitude, GPSAltitude)
 
 ```
 
-# Collecting country information 
+###  Date information
+Needs a bit of restructuring, we also define the **newname** of the file to be saved. 
 
-```{r CountryInfo}
+```{r DateInfo}
 library(lubridate)
 library(maps)
 
 # Adding date 
-mydat <- mydat %>%
+mydat <- exifdat %>%
   mutate(DateTimeOriginal = ifelse(is.na(DateTimeOriginal),
                                    FileModifyDate,
                                    DateTimeOriginal)) %>%
@@ -70,68 +90,136 @@ mydat <- mydat %>%
  tidyr::separate(Date, c("Year", "rest"), extra = "merge", fill = "left")  %>%
  tidyr::separate(rest, c("Month", "rest2"), extra = "merge", fill = "left") %>%
  tidyr::separate(rest2, c("Day", "Time"),  extra = "merge", fill = "left") %>%
- mutate( newname = paste0(Year,"-",Month, "-", Day, "-",  FileName))
+ mutate(
+   Date =  paste0(Year,"-",Month, "-", Day),  
+   NewName = paste0(Date, "-",  FileName))
+```
 
+###  Collecting country information 
 
+```{r CountryInfo}
+# Replace missing coordinates by (0,0)
+mydat <- mydat %>%
+  mutate(GPSLongitude =  ifelse(is.na(GPSLatitude), 0 ,GPSLongitude),
+         GPSLatitude =  ifelse(is.na(GPSLatitude), 0 ,GPSLatitude)) 
 
 # Adding Countries from  GPS 
 mydat <- mydat %>%
-  mutate(GPSLongitude =  ifelse(is.na(GPSLatitude), 0 ,GPSLongitude),
-         GPSLatitude =  ifelse(is.na(GPSLatitude), 0 ,GPSLatitude)) %>%
   mutate(Country = maps::map.where(database="world", GPSLongitude, GPSLatitude, na.rm=TRUE),
-         Dept = maps::map.where(database="france", GPSLongitude, GPSLatitude, na.rm=TRUE)) %>%
+         Dept = maps::map.where(database="france", GPSLongitude, GPSLatitude, na.rm=TRUE))
+
+# Create CountryShort and Region for detailled information 
+mydat <- mydat %>%
   tidyr::extract(Country, c("Countryshort", "Region"),
                  regex = "([[:alnum:]]+):([[:alnum:]]+)",
                  remove = FALSE)%>%
   mutate(Country = ifelse(!is.na(Countryshort) , Countryshort, Country), 
-         Region = ifelse(!is.na(Dept) , Dept, Region) ) %>%
-  mutate(Country = ifelse(GPSAltitude >1700, "P2000", Country)) %>%
-  select( !c("Countryshort", "Dept"))
+         Region = ifelse(!is.na(Dept) , Dept, Region) )  %>%
+ select( !c("Countryshort", "Dept"))
+
+# Identifying specific places/events
+### Identifying  P2000
+mydat <- mydat %>%
+  mutate(Country = ifelse(GPSAltitude >1700, "P2000", Country)) 
+ 
+
+####  Festa Design
+mydat <- mydat %>%
+  mutate(Region = ifelse(Date %in% c("2022-11-19", "2022-11-20"), "Design-Festa", Region)) 
   
   
 ```
 
-> we have `r nrow(mydat)` pictures in the directory XXXX, and  `r nrow(mydatGPS)` with country location. 
 
+###  Some statistics by location (ToDo)
+> we have `r nrow(mydat)` pictures in the directory XXXX, and  with country location. 
 
-# Renaming and Moving pictures to directories
-
-```{r GPS moving}
-mydat <-  mydat  %>%
-  mutate(
-         newdir = case_when(is.na(Country)  ~ paste0(Year, "-",Month),
-                            !is.na(Country) & is.na(Region) ~ paste0(Year, "-", Country),
-                            !is.na(Country) & !is.na(Region) ~ paste0(Year, "-", Region)))
-
-
-
-```
 
 ```{r}
-frompath <- "c:/Temp/Photos/Toto/"
-topath <- "c:/Temp/Photos/Titi/"
+
+mydat %>%
+  count(FileType, Country,Region)
+
+```
+
+
+# Renaming and Moving pictures to destination directories
+
+```{r Final naming}
+
+# If one region, no sub-directory  --> counting that
+mydat <- mydat %>%
+  group_by(Country) %>%
+  mutate( NbRegion = n_distinct(Region))
+
+# If many pictures the same day, then special event
+mydat <- mydat %>%
+  group_by(Date) %>%
+  mutate( NbPicturesDay = n_distinct(FileName)) 
+  
+mydat <- mydat %>%
+  mutate(
+    Region = ifelse(NbPicturesDay >50, Date, Region), 
+    NbRegion = ifelse(NbPicturesDay >50, 2, NbRegion), 
+  )
+
+mydat <-  mydat  %>%
+  mutate(
+        Newdir = case_when(
+          is.na(Country)  ~ paste0(Year, "/",Month),
+          !is.na(Country) & is.na(Region) ~ paste0(Year, "/", Country),
+          !is.na(Country) & !is.na(Region) & NbRegion == 1  ~ paste0(Year, "/", Country),
+          !is.na(Country) & !is.na(Region)  & NbRegion >1 ~ paste0(Year, "/", Country, "/", Region)
+          
+          )
+        )
+
+
+
+```
+
+```{r Copying}
+
 
 for(i in 1:nrow(mydat)) {       # for-loop over rows
-   # Create directory if doesn't exist 
-   ifelse(dir.exists(paste0(topath, mydat[i, "newdir"])), FALSE,
-          dir.create(paste0(topath, mydat[i, "newdir"]), recursive = TRUE))
-  
-  # Copy file
-  file.copy(from = paste0(frompath, mydat[i, "FileName"]), 
-            to = paste0(topath, mydat[i, "newdir"],"/", mydat[i, "newname"]))
-  
+   # Create directory if doesn't exist
+   ifelse(dir.exists(paste0(ToDir, mydat[i, "Newdir"])), FALSE,
+          dir.create(paste0(ToDir, mydat[i, "Newdir"]), recursive = TRUE))
+
+#   # Copy file
+#   file.copy(from = paste0(SourceDir, mydat[i, "FileName"]), 
+#             to = paste0(ToDir, mydat[i, "Newdir"],"/", mydat[i, "NewName"]))
+#   
 }
 
 
 ```
 
+# Listing the correct number of pictures pasted
+
+```{r}
+#   mUST FIND A WAY
+```
+
+
 
 # Interactive map with leaflet
 
 ```{r}
-leaflet(mydat) %>%
-addProviderTiles("Esri.WorldImagery") %>%
-addMarkers(~ GPSLongitude, ~ GPSLatitude)  
+# text to be diplayed on pop-ups
+
+center <- "<div style='text-align:center'>"
+name <- paste0(center, "<b>", mydat$FileName , "</b>", "</div>")
+year <- paste0(center,"Year=",  mydat$Year, " </div>")
+imgsrc <- paste0(mydat$SourceFile)
+img <- paste0(center, "<img src= ' ", imgsrc,"' />")
+
+
+mydat %>%
+  filter(Country == "France") %>%
+  leaflet() %>%
+  addProviderTiles("Esri.WorldImagery") %>%
+  addMarkers(~ GPSLongitude, ~ GPSLatitude, popup = paste(name, year, img))  
 ```
 
 
