@@ -1,5 +1,5 @@
 ---
-title: "ExifFromPictures"
+title: "Using Exif to Automatically sort Pictures"
 author: "Christophe Bontemps"
 date: "2023-01-29"
 output:
@@ -23,11 +23,8 @@ opts_chunk$set(warning = FALSE, message = FALSE,
 library(exifr)
 library(dplyr)
 library(leaflet)
-#library("vtable")
 library(kableExtra)
 library(janitor)
-
-
 library(openxlsx)
 ```
 
@@ -43,7 +40,7 @@ library(openxlsx)
 ## Source and destination
 ```{r paths}
 # Source directory
-SourceDir <-  "c:/temp/Photos/Iphone/202104__"
+SourceDir <-  "c:/temp/Photos/Iphone/202207__/"
 
 # Destination 
 ToDir <- "c:/Temp/Photos/New/"
@@ -62,7 +59,6 @@ Once exiftool is correctly installed^[See the information on how to install [htt
 
 ```{r exifextraction  }
 
-# myjpg <- list.files(path = SourceDir, pattern = mypattern )
 Myfiles <- list.files(path = SourceDir,
                     recursive=TRUE,
                     pattern = mypattern, full.names=TRUE)
@@ -244,7 +240,7 @@ SourceText <- str_replace_all(SourceDir, "[/:]", "_")
 SourceText <- gsub("c__", "", SourceText)
  
 write.xlsx(mystat,
-           file=paste(ToDir,"Log-",SourceText,"-N=", nrow(mydat), "-(", ymd(Sys.Date()),").xlsx", sep=""))
+           file=paste(ToDir,"Logs/Log-",SourceText,"-N=", nrow(mydat), "-(", ymd(Sys.Date()),").xlsx", sep=""))
 
 ```
 
@@ -261,13 +257,13 @@ MyCopiedfiles <- list.files(path = ToDir,
 
 # Idea is to match the names between Myfiles and MyCopiedfiles
 
-NamesOriginal<- word( gsub("/", " ", Myfiles), -1)
-NameFinal <- word( gsub("/", " ", MyCopiedfiles), -1)
+NamesOriginal<- word( gsub("/", " ", Myfiles), -1)     # removing "" from full name and take the last word
+NameFinal <- word( gsub("-", " ", MyCopiedfiles), -1)  # <--- Final name has date prefix
 
 NbCommon <- length(intersect(NameFinal, NamesOriginal))
 
 message <- ifelse( NbCommon == nrow(mydat),
-                   paste("Everything went well (", length(NameFinal) , "files copied)"),
+                   paste("Everything went well (", NbCommon , "files copied)"),
                    paste( "**Problem**: there are **", nrow(mydat) - NbCommon, "** files missing!" )) 
 
 ```
@@ -288,7 +284,7 @@ img <- paste0(center, "<img src= '", imgsrc,"' />")
 ### Not the right order of  images!! 
 
 mydat %>%
-  filter(FileType == "JPEG") %>%
+  filter(FileType == "JPEG" & GPSLatitude != 0) %>%
   leaflet() %>%
   addProviderTiles("Esri.WorldImagery") %>%
   addMarkers(~ GPSLongitude, ~ GPSLatitude, popup = paste(name, year, img))  
