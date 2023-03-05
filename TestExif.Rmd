@@ -8,16 +8,27 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+knitr::opts_chunk$set(echo = FALSE)
+
+# Other options used here 
+opts_chunk$set(warning = FALSE, message = FALSE,
+               fig.pos = "!H", fig.align = "center",
+               autodep = TRUE, tidy = FALSE)
 ```
 
-## R Markdown
+
 
 ```{r libraries}
 library(exifr)
 library(dplyr)
 library(leaflet)
-library("vtable")
+#library("vtable")
+library(kableExtra)
+library(janitor)
+
+
+library(openxlsx)
 ```
 
 
@@ -29,24 +40,27 @@ library("vtable")
 # configure_exiftoolr()
 ```
 
-### Source and destination
-One idea would be also to do batches of transferts
-
+## Source and destination
 ```{r paths}
 # Source directory
 SourceDir <-  "c:/temp/Photos/Toto"
-mypattern  <- "*.jpg|*.JPG|*.PNG|*.MP4|*.MOV"
 
 # Destination 
 ToDir <- "c:/Temp/Photos/Titi/"
 
+mypattern  <- "*.jpg|*.JPG|*.PNG|*.MP4|*.MOV"
+
 ```
 
-# Extract exif data from pictures
-Once exiftool is correctly installed, one can collect all the information! 
+We will transfer the pictures from *`r SourceDir`* to several sub-directories in *`r ToDir`*. 
+**NB**: *One idea would be also to do batches of transferts*
 
 
-```{r exifextraction, cache = TRUE}
+##  Extract exif data from pictures
+Once exiftool is correctly installed^[(see the information on how to install [https://exiftool.org/install.html](https://exiftool.org/install.html)], one can collect all the information embedded in our pictures. Here we only collect the files with extensions *`r mypattern`*.
+
+
+```{r exifextraction  }
 
 myjpg <- list.files(path = SourceDir, pattern = mypattern )
 files <- list.files(path = SourceDir,
@@ -57,7 +71,10 @@ files <- list.files(path = SourceDir,
 exifinfo <- read_exif(files, quiet = TRUE)
 ```
 
-## Refining the information
+We have now the complete information on **`r nrow(exifinfo)`** pictures, among which **`r nrow(subset(exifinfo, FileType =="JPEG"))`** are jpegs. 
+
+
+
 
 ```{r selecting variables }
 
@@ -72,8 +89,9 @@ exifdat <- exifinfo %>%
 
 ```
 
-###  Date information
-Needs a bit of restructuring, we also define the **newname** of the file to be saved. 
+## Refining the information
+We need a bit of cleaning there, in particular, we have date format and, as usual, this is needs to be extracted if one wants to use the year as a sorting variable. Also some coordinates (GPS) are missing and values should be imputed (as zeros here) for *maps* to work (see below).
+
 
 ```{r DateInfo}
 library(lubridate)
@@ -96,6 +114,7 @@ mydat <- exifdat %>%
 ```
 
 ###  Collecting country information 
+We use the package *maps* to recover the information from GPS (latitude, longitude). We will use this information to organize the files into folder names with information on  years and  location. 
 
 ```{r CountryInfo}
 # Replace missing coordinates by (0,0)
@@ -127,18 +146,27 @@ mydat <- mydat %>%
 mydat <- mydat %>%
   mutate(Region = ifelse(Date %in% c("2022-11-19", "2022-11-20"), "Design-Festa", Region)) 
   
-  
 ```
 
 
-###  Some statistics by location (ToDo)
-> we have `r nrow(mydat)` pictures in the directory XXXX, and  with country location. 
+###  Some statistics by location 
+
+We have **`r nrow(mydat)`** files in the directory  *`r SourceDir`* , and **`r nrow(subset(mydat, Country != ""))`**  with country location. 
 
 
 ```{r}
 
-mydat %>%
-  count(FileType, Country,Region)
+# mydat %>%
+#   count(FileType, Country,Region) %%
+#    adorn_totals() -> Tabstat
+
+
+Tabstat <- mydat %>%
+  group_by(FileType, Country,Region) %>%
+  summarize(Nbfiles = n()) %>%
+  adorn_totals()
+
+kable(Tabstat  )
 
 ```
 
@@ -156,13 +184,16 @@ mydat <- mydat %>%
 mydat <- mydat %>%
   group_by(Date) %>%
   mutate( NbPicturesDay = n_distinct(FileName)) 
-  
+
+# Defining Directories and SubDirectories
+
 mydat <- mydat %>%
   mutate(
     Region = ifelse(NbPicturesDay >50, Date, Region), 
     NbRegion = ifelse(NbPicturesDay >50, 2, NbRegion), 
   )
 
+# Definition of Directories 
 mydat <-  mydat  %>%
   mutate(
         Newdir = case_when(
@@ -173,7 +204,6 @@ mydat <-  mydat  %>%
           
           )
         )
-
 
 
 ```
@@ -195,10 +225,25 @@ for(i in 1:nrow(mydat)) {       # for-loop over rows
 
 ```
 
-# Listing the correct number of pictures pasted
+# Listing the number of pictures pasted and location
 
 ```{r}
 #   mUST FIND A WAY
+mystat <- mydat %>%
+  group_by(Newdir) %>%
+  summarize(NbInNewDir = n()) %>%
+  adorn_totals()
+
+ kable(mystat)
+
+# save the file 
+library(stringr)
+SourceText <- str_replace_all(SourceDir, "[/:]", "_")
+SourceText <- gsub("c__", "", SourceText)
+ 
+write.xlsx(mystat,
+           file=paste(ToDir,"Log-",SourceText,"-N=", nrow(mydat), "-(", ymd(Sys.Date()),").xlsx", sep=""))
+
 ```
 
 
@@ -211,12 +256,13 @@ for(i in 1:nrow(mydat)) {       # for-loop over rows
 center <- "<div style='text-align:center'>"
 name <- paste0(center, "<b>", mydat$FileName , "</b>", "</div>")
 year <- paste0(center,"Year=",  mydat$Year, " </div>")
-imgsrc <- paste0(mydat$SourceFile)
-img <- paste0(center, "<img src= ' ", imgsrc,"' />")
+imgsrc <- paste0(SourceDir,"/IMG_0311.JPG")
+img <- paste0(center, "<img src= '", imgsrc,"' />")
 
+### Not the right order of  images!! 
 
 mydat %>%
-  filter(Country == "France") %>%
+  filter(FileType == "JPEG") %>%
   leaflet() %>%
   addProviderTiles("Esri.WorldImagery") %>%
   addMarkers(~ GPSLongitude, ~ GPSLatitude, popup = paste(name, year, img))  
