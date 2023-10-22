@@ -20,12 +20,22 @@ opts_chunk$set(warning = FALSE, message = FALSE,
 
 
 ```{r libraries}
+# To extract information from images 
 library(exifr)
+
+# data management 
 library(dplyr)
-library(leaflet)
-library(kableExtra)
 library(janitor)
 library(openxlsx)
+
+# Tables
+library(kableExtra)
+
+# For maps and geocoding
+library(tidygeocoder)
+library(leaflet)
+library(maps)
+
 ```
 
 
@@ -37,10 +47,13 @@ library(openxlsx)
 # configure_exiftoolr()
 ```
 
-## Source and destination
+## Folders for file copying
+
+This is where I define source and destination, obviously. It is possible to use a list of folders for the source to avoid tedious repetitions (Todo)
+
 ```{r paths}
 # Source directory
-SourceDir <-  "c:/temp/Photos/Iphone/202207__/"
+SourceDir <-  "c:/temp/Photos/Iphone/Fiji/"
 
 # Destination 
 ToDir <- "c:/Temp/Photos/New/"
@@ -49,27 +62,40 @@ mypattern  <- "*.jpg|*.JPG|*.PNG|*.MP4|*.MOV"
 
 ```
 
-We will transfer the pictures from *`r SourceDir`* to several sub-directories in *`r ToDir`*. 
+We will transfer the pictures from *`r SourceDir`* to several sub-directories in *`r ToDir`*.
+
 **NB**: *One idea would be also to do batches of transfers*
 
 
 ##  Extract exif data from pictures
 Once exiftool is correctly installed^[See the information on how to install [https://exiftool.org/install.html](https://exiftool.org/install.html)], one can collect all the information embedded in our pictures. Here we only collect the files with extensions *`r mypattern`*.
 
+We do this only if exif has not been done already. 
+
 
 ```{r exifextraction  }
+# Construct the full file path
+exifFile <- paste0(SourceDir,"exif.Rdata")
 
-Myfiles <- list.files(path = SourceDir,
-                    recursive=TRUE,
-                    pattern = mypattern, full.names=TRUE)
-
-# This is long... 
-exifinfo <- read_exif(Myfiles, quiet = TRUE)
+# Check if the file exists
+if (file.exists(exifFile)) {
+  # Load the file if it exists
+  print("Loading  Exif file ")
+  load(exifFile)
+} else {
+  print("Exif file does not exist")
+  Myfiles <- list.files(path = SourceDir,
+                      recursive=TRUE,
+                      pattern = mypattern, full.names=TRUE)
+  
+  # This is long... 
+  exifinfo <- read_exif(Myfiles, quiet = TRUE)
+  
+  save(exifinfo, file = paste0(SourceDir,"exif.Rdata"))
+}
 ```
 
 We have now the complete information on **`r nrow(exifinfo)`** pictures, among which **`r nrow(subset(exifinfo, FileType =="JPEG"))`** are jpegs. 
-
-
 
 
 ```{r selecting variables }
@@ -109,29 +135,95 @@ mydat <- exifdat %>%
    NewName = paste0(Date, "-",  FileName))
 ```
 
-###  Collecting country information 
-We use the package *maps* to recover the information from GPS (latitude, longitude). We will use this information to organize the files into folder names with information on  years and  location. 
-
-```{r CountryInfo}
+```{r}
 # Replace missing coordinates by (0,0)
 mydat <- mydat %>%
   mutate(GPSLongitude =  ifelse(is.na(GPSLatitude), 0 ,GPSLongitude),
          GPSLatitude =  ifelse(is.na(GPSLatitude), 0 ,GPSLatitude)) 
+```
+
+
+###  Collecting country information 
+
+```{r}
+# Using library(tidygeocoder)
+# https://jessecambon.github.io/tidygeocoder/articles/tidygeocoder.html
+
+osmfile <- paste0(SourceDir,"osmdata.Rdata")
+
+# Check if the file exists
+if (file.exists(osmfile)) {
+  # Load the file if it exists
+  print("Loading  osm file ")
+  load(osmfile)
+} else {
+print("Reverse location using OSM data ")
+osmdata <- reverse_geo(lat = mydat$GPSLatitude, long = mydat$GPSLongitude,
+              method = "osm",
+              full_results = TRUE)
+
+save(osmdata, file = paste0(SourceDir,"osmdata.Rdata"))
+}
+  
+# this operation is also very long...
+```
+
+
+```{r}
+# Extracting OSM data and merging
+revdata <- osmdata %>%
+  select( "lat", "long",  "place_id", "city", "addresstype", "name",  "country", "country_code",  "address")%>%
+  rename(osmcity = city, 
+         osmcountry = country, 
+         osmcode = country_code) %>%
+  distinct(lat, long, .keep_all = TRUE)
+
+mydatosm <- left_join(mydat, revdata, 
+              by = join_by(GPSLatitude == lat, GPSLongitude == long ) )
+
+```
+
+
+## Converting city names from English 
+```{r}
+library(reticulate)
+# reticulate::install_python(version = '<version>')
+# py_install("pykakasi")  # Only need to install once
+
+# Make module available in R
+pykakasi <- import("pykakasi")
+
+
+# Alias the convert function for convenience
+convert <- pykakasi$kakasi()$convert
+
+```
+
+
+
+###  Collecting country information 
+We use the package *maps* to recover the information from GPS (latitude, longitude). We will use this information to organize the files into folder names with information on  years and  location. 
+
+```{r CountryInfo}
+# Using the maps library
 
 # Adding Countries from  GPS 
-mydat <- mydat %>%
+mydatN <- mydatosm %>%
   mutate(Country = maps::map.where(database="world", GPSLongitude, GPSLatitude, na.rm=TRUE),
          Dept = maps::map.where(database="france", GPSLongitude, GPSLatitude, na.rm=TRUE))
 
 # Create CountryShort and Region for detailed information 
-mydat <- mydat %>%
+mydatN <- mydatN %>%
   tidyr::extract(Country, c("Countryshort", "Region"),
                  regex = "([[:alnum:]]+):([[:alnum:]]+)",
                  remove = FALSE)%>%
   mutate(Country = ifelse(!is.na(Countryshort) , Countryshort, Country), 
          Region = ifelse(!is.na(Dept) , Dept, Region) )  %>%
  select( !c("Countryshort", "Dept"))
+```
 
+
+```{r CountryInfo}
 # Identifying specific places/events
 ### Identifying  P2000
 mydat <- mydat %>%
@@ -145,6 +237,8 @@ mydat <- mydat %>%
 ```
 
 
+
+
 ###  Some statistics by location 
 
 We have **`r nrow(mydat)`** files in the directory  *`r SourceDir`* , and **`r nrow(subset(mydat, Country != ""))`**  with country location. 
@@ -155,7 +249,6 @@ We have **`r nrow(mydat)`** files in the directory  *`r SourceDir`* , and **`r n
 # mydat %>%
 #   count(FileType, Country,Region) %%
 #    adorn_totals() -> Tabstat
-
 
 Tabstat <- mydat %>%
   group_by(FileType, Country,Region) %>%
@@ -205,24 +298,31 @@ mydat <-  mydat  %>%
 
 ```
 
+###  Trying to refine the information on the location using Natural earth...
+
+```{r}
+
+```
+
+
 ```{r Copying}
-
-
-for(i in 1:nrow(mydat)) {       # for-loop over rows
-   # Create directory if doesn't exist
-   ifelse(dir.exists(paste0(ToDir, mydat[i, "Newdir"])), FALSE,
-          dir.create(paste0(ToDir, mydat[i, "Newdir"]), recursive = TRUE))
-
-  # Copy file
-  file.copy(from = paste0(SourceDir, mydat[i, "FileName"]),
-            to = paste0(ToDir, mydat[i, "Newdir"],"/", mydat[i, "NewName"]))
-
-}
+### ACHTUNG !!!! 
+# 
+# for(i in 1:nrow(mydat)) {       # for-loop over rows
+#    # Create directory if doesn't exist
+#    ifelse(dir.exists(paste0(ToDir, mydat[i, "Newdir"])), FALSE,
+#           dir.create(paste0(ToDir, mydat[i, "Newdir"]), recursive = TRUE))
+# 
+#   # Copy file
+#   file.copy(from = paste0(SourceDir, mydat[i, "FileName"]),
+#             to = paste0(ToDir, mydat[i, "Newdir"],"/", mydat[i, "NewName"]))
+# 
+# }
 
 
 ```
 
-### Where the `r nrow(mydat)` pictures will be copied? 
+### Where the `r nrow(mydat)` pictures have been copied? 
 
 
 ```{r}
