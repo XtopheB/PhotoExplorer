@@ -80,7 +80,8 @@ We do this only if exif has not been done alread for the same files
 
 
 ```{r exifextraction  }
-# Construct the full file path
+# Construct unique exif Filename
+
 exifFileName <- paste0(SourceDir,"exif",NbFiles,".Rdata")
 
 # Check if the file exists
@@ -155,20 +156,21 @@ mydat <- mydat %>%
 # Using library(tidygeocoder)
 # https://jessecambon.github.io/tidygeocoder/articles/tidygeocoder.html
 
-osmfile <- paste0(SourceDir,"osmdata.Rdata")
+# Creating OSM unique name 
+osmfileName <- paste0(SourceDir,"osmdata",NbFiles,".Rdata")
 
 # Check if the file exists
-if (file.exists(osmfile)) {
+if (file.exists(osmfileName)) {
   # Load the file if it exists
   print("Loading  osm file ")
-  load(osmfile)
+  load(osmfileName)
 } else {
 print("Reverse location using OSM data ")
 osmdata <- reverse_geo(lat = mydat$GPSLatitude, long = mydat$GPSLongitude,
               method = "osm",
               full_results = TRUE)
 
-save(osmdata, file = paste0(SourceDir,"osmdata.Rdata"))
+save(osmdata, file = osmfileName)
 }
   
 # this operation is also very long...
@@ -244,16 +246,15 @@ mydatN <- mydatN %>%
 
 ```{r CountryInfo}
 mydatN <- mydatN %>%
-  mutate(Country = case_when(is.na(CountryGPS) ~ osmcountry,
-                             CountryGPS =="日本" ~ "Japan",,
+  mutate(Country = case_when( osmcode =="jp" ~ "Japan",
+                              is.na(CountryGPS) ~ osmcountry,
                              .default =  CountryGPS),
          Region =  case_when((GPSAltitude >1700) & (CountryGPS =="France") ~ "P2000",
                              grepl("balma", address, ignore.case = TRUE)~ "Balma", 
                              Date %in% c("2022-11-19", "2022-11-20") ~ "Design-Festa", 
                              .default =  RegionGPS)
-         ) %>%
-  mutate(Country = ifelse(is.na(CountryGPS) & is.na(RegionGPS), "Other", Country)
-  )
+         )
+  
                               
 ```
 
@@ -281,40 +282,77 @@ kable(Tabstat  )
 
 # Renaming and Moving pictures to destination directories
 
-# Final naming is decided here!!!
+### Counts of picytures by day, region country 
 
-```{r Final naming}
-
+```{r Finalcounts}
 # If one region, no sub-directory  --> counting that
 mydatN <- mydatN %>%
-  group_by(Country) %>%
-  mutate( NbRegion = n_distinct(Region))
+  group_by(Country, Year) %>%
+  mutate( NbRegion = n_distinct(Region)
+          )
 
 # If many pictures the same day, then special event
 mydatN <- mydatN %>%
   group_by(Date) %>%
   mutate( NbPicturesDay = n_distinct(FileName)) 
 
-# Defining Directories and Sub-Directories
+# If many pictures in the same Region 
+mydatN <- mydatN %>%
+  group_by(Country, Year, Region) %>%
+  mutate( NbDaysRegion = n_distinct(Date))
 
+# To avoid same directory for many pictures
+mydatN <- mydatN %>%
+  group_by(Country, Year) %>%
+  mutate( NbRegion = n_distinct(Region))
+```
+
+###  Final naming is decided here!!!
+
+```{r Final naming}
+# Defining main rule for Directories and Sub-Directories
 mydatN <- mydatN %>%
   mutate(
-    MainDir = Country,
-    Sub = ifelse(NbPicturesDay >50, Date, Region), 
-    NbSub = ifelse(NbPicturesDay >50, 2, NbRegion), 
-  )
+    MainDir = ifelse(!is.na(Country), Country, "Other"),
+    Sub = Region)
 
+
+# Defining Directories and Sub-Directories
+# Nb Days to trigger sub 
+
+NbPicturesDayMax <- 50
+NbDaysRegionMax <- 50
+
+mydatN <- mydatN %>%
+   mutate(Sub = case_when(NbPicturesDay > NbPicturesDayMax ~ name,
+                          NbDaysRegion > NbDaysRegionMax ~ name, 
+                             .default =  Sub)
+   )
+  
 # Definition of Directories and Sub
+
 mydatN <-  mydatN  %>%
   mutate(
         Newdir = case_when(
-          is.na(Country)  ~ paste0(Year, "/",Month, "/"),
-          !is.na(Country) & is.na(Region) ~ paste0(Year, "_", MainDir, "/"),
-          !is.na(Country) & !is.na(Region) & NbSub == 1  ~ paste0(Year, "_", MainDir, "/"),
-          !is.na(Country) & !is.na(Region)  & NbSub >1 ~ paste0(Year, "_", MainDir, "/", Sub, "/")
-          
+           is.na(Sub) ~ paste0(Year, "_", MainDir),
+           (!is.na(Sub) &  Sub !="" ) ~ paste0(Year, "_", MainDir, "/", Sub, "/"), 
+            .default =  paste0(Year, "_", MainDir, "/")
+            )
           )
-        )
+        
+
+## Old
+
+# mydatN <-  mydatN  %>%
+#   mutate(
+#         Newdir = case_when(
+#           is.na(Country)  ~ paste0(Year, "/",Month, "/"),
+#           !is.na(Country) & is.na(Region) ~ paste0(Year, "_", MainDir, "/"),
+#           !is.na(Country) & !is.na(Region) & NbSub == 1  ~ paste0(Year, "_", MainDir, "/"),
+#           !is.na(Country) & !is.na(Region)  & NbSub >1 ~ paste0(Year, "_", MainDir, "/", Sub, "/")
+#           
+#           )
+#         )
 
 
 ```
