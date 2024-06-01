@@ -52,17 +52,22 @@ library(maps)
 This is where I define source and destination, obviously. It is possible to use a list of folders for the source to avoid tedious repetitions (Todo)
 
 ```{r paths}
+# We only rename  pictures and videos
+mypattern  <- "*.jpg|*.JPG|*.PNG|*.MP4|*.MOV"
+
 # Source directory
 SourceDir <-  "c:/temp/Photos/TestRenamePictures/Original/"
-
 # Destination 
 ToDir <- "c:/temp/Photos/TestRenamePictures/Renamed/"
 
-mypattern  <- "*.jpg|*.JPG|*.PNG|*.MP4|*.MOV"
+# List of  files that will be renamed
+files <- list.files(path = SourceDir, pattern = mypattern,  full.names = TRUE)
+# Count the number of files
+NbFiles <- length(files)
 
 ```
 
-We will transfer the pictures from *`r SourceDir`* to several sub-directories in *`r ToDir`*.
+We will transfer **`r NbFiles`** pictures from *`r SourceDir`* to several sub-directories in *`r ToDir`*.
 
 **NB**: *One idea would be also to do batches of transfers*
 
@@ -70,18 +75,19 @@ We will transfer the pictures from *`r SourceDir`* to several sub-directories in
 ##  Extract exif data from pictures
 Once exiftool is correctly installed^[See the information on how to install [https://exiftool.org/install.html](https://exiftool.org/install.html)], one can collect all the information embedded in our pictures. Here we only collect the files with extensions *`r mypattern`*.
 
-We do this only if exif has not been done already. 
+We do this only if exif has not been done alread for the same files
+
 
 
 ```{r exifextraction  }
 # Construct the full file path
-exifFile <- paste0(SourceDir,"exif.Rdata")
+exifFileName <- paste0(SourceDir,"exif",NbFiles,".Rdata")
 
 # Check if the file exists
-if (file.exists(exifFile)) {
+if (file.exists(exifFileName)) {
   # Load the file if it exists
   print("Loading  Exif file ")
-  load(exifFile)
+  load(exifFileName)
 } else {
   print("Exif file does not exist")
   Myfiles <- list.files(path = SourceDir,
@@ -91,7 +97,7 @@ if (file.exists(exifFile)) {
   # This is long... 
   exifinfo <- read_exif(Myfiles, quiet = TRUE)
   
-  save(exifinfo, file = paste0(SourceDir,"exif.Rdata"))
+  save(exifinfo, file = exifFileName)
 }
 ```
 
@@ -319,22 +325,22 @@ mydatN <-  mydatN  %>%
 
 ```{r}
 ### ACHTUNG !!!! 
+# # 
+# for(i in 1:nrow(mydatN)) {       # for-loop over rows
+#    # Create directory if doesn't exist
+#    ifelse(dir.exists(paste0(ToDir, mydatN[i, "Newdir"])), FALSE,
+#           dir.create(paste0(ToDir, mydatN[i, "Newdir"]), recursive = TRUE))
 # 
-for(i in 1:nrow(mydatN)) {       # for-loop over rows
-   # Create directory if doesn't exist
-   ifelse(dir.exists(paste0(ToDir, mydatN[i, "Newdir"])), FALSE,
-          dir.create(paste0(ToDir, mydatN[i, "Newdir"]), recursive = TRUE))
+#   # rename file
+#    if (file.exists(paste0(SourceDir, mydatN[i, "FileName"]))) {
+#    file.rename(from = paste0(SourceDir, mydatN[i, "FileName"]),
+#              to = paste0(ToDir, mydatN[i, "Newdir"],"/", mydatN[i, "NewName"]))
+#    }
+#    else {
+#     warning(paste("File does not exist:", paste0(SourceDir, mydatN[i, "FileName"])))
+#   }
+# }
 
-  # rename file
-   if (file.exists(paste0(SourceDir, mydatN[i, "FileName"]))) {
-   file.rename(from = paste0(SourceDir, mydatN[i, "FileName"]),
-             to = paste0(ToDir, mydatN[i, "Newdir"],"/", mydatN[i, "NewName"]))
-   }
-   else {
-    warning(paste("File does not exist:", paste0(SourceDir, mydatN[i, "FileName"])))
-  }
-
-}
 ```
 
 
@@ -355,9 +361,6 @@ for(i in 1:nrow(mydatN)) {       # for-loop over rows
 
 
 ```
-
-
-
 
 
 
