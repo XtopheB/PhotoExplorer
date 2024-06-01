@@ -53,10 +53,10 @@ This is where I define source and destination, obviously. It is possible to use 
 
 ```{r paths}
 # Source directory
-SourceDir <-  "c:/temp/Photos/Iphone/Fiji/"
+SourceDir <-  "c:/temp/Photos/TestRenamePictures/Original/"
 
 # Destination 
-ToDir <- "c:/Temp/Photos/New/"
+ToDir <- "c:/temp/Photos/TestRenamePictures/Renamed/"
 
 mypattern  <- "*.jpg|*.JPG|*.PNG|*.MP4|*.MOV"
 
@@ -184,18 +184,18 @@ mydatosm <- left_join(mydat, revdata,
 ```
 
 
-## Converting city names from English 
+## Converting city names from English (does not work)
 ```{r}
 library(reticulate)
 # reticulate::install_python(version = '<version>')
 # py_install("pykakasi")  # Only need to install once
 
-# Make module available in R
-pykakasi <- import("pykakasi")
-
-
-# Alias the convert function for convenience
-convert <- pykakasi$kakasi()$convert
+# # Make module available in R
+# pykakasi <- import("pykakasi")
+# 
+# 
+# # Alias the convert function for convenience
+# convert <- pykakasi$kakasi()$convert
 
 ```
 
@@ -209,34 +209,47 @@ We use the package *maps* to recover the information from GPS (latitude, longitu
 
 # Adding Countries from  GPS 
 mydatN <- mydatosm %>%
-  mutate(Country = maps::map.where(database="world", GPSLongitude, GPSLatitude, na.rm=TRUE),
-         Dept = maps::map.where(database="france", GPSLongitude, GPSLatitude, na.rm=TRUE))
+  mutate(CountryGPS = maps::map.where(database="world", GPSLongitude, GPSLatitude, na.rm=TRUE),
+         DeptGPS = maps::map.where(database="france", GPSLongitude, GPSLatitude, na.rm=TRUE))
 
 # Create CountryShort and Region for detailed information 
 mydatN <- mydatN %>%
-  tidyr::extract(Country, c("Countryshort", "Region"),
+  tidyr::extract(CountryGPS, c("Countryshort", "RegionGPS"),
                  regex = "([[:alnum:]]+):([[:alnum:]]+)",
                  remove = FALSE)%>%
-  mutate(Country = ifelse(!is.na(Countryshort) , Countryshort, Country), 
-         Region = ifelse(!is.na(Dept) , Dept, Region) )  %>%
- select( !c("Countryshort", "Dept"))
+  mutate(CountryGPS = ifelse(!is.na(Countryshort) , Countryshort, CountryGPS), 
+         RegionGPS = ifelse(!is.na(DeptGPS) , DeptGPS, RegionGPS) )%>%
+ select( !c("Countryshort", "DeptGPS"))
 ```
 
 
-```{r CountryInfo}
+```{r CountryInfoOld}
 # Identifying specific places/events
 ### Identifying  P2000
-mydat <- mydat %>%
-  mutate(Country = ifelse(GPSAltitude >1700, "P2000", Country)) 
- 
-
-####  Festa Design
-mydat <- mydat %>%
-  mutate(Region = ifelse(Date %in% c("2022-11-19", "2022-11-20"), "Design-Festa", Region)) 
+# mydatN <- mydatN %>%
+#   mutate(Country = ifelse(GPSAltitude >1700, "P2000", Country)) 
+#  
+# ####  Festa Design
+# mydatN <- mydatN %>%
+#   mutate(Region = ifelse(Date %in% c("2022-11-19", "2022-11-20"), "Design-Festa", Region)) 
   
 ```
 
 
+```{r CountryInfo}
+mydatN <- mydatN %>%
+  mutate(Country = case_when(is.na(CountryGPS) ~ osmcountry,
+                             CountryGPS =="日本" ~ "Japan",,
+                             .default =  CountryGPS),
+         Region =  case_when((GPSAltitude >1700) & (CountryGPS =="France") ~ "P2000",
+                             grepl("balma", address, ignore.case = TRUE)~ "Balma", 
+                             Date %in% c("2022-11-19", "2022-11-20") ~ "Design-Festa", 
+                             .default =  RegionGPS)
+         ) %>%
+  mutate(Country = ifelse(is.na(CountryGPS) & is.na(RegionGPS), "Other", Country)
+  )
+                              
+```
 
 
 ###  Some statistics by location 
@@ -250,7 +263,7 @@ We have **`r nrow(mydat)`** files in the directory  *`r SourceDir`* , and **`r n
 #   count(FileType, Country,Region) %%
 #    adorn_totals() -> Tabstat
 
-Tabstat <- mydat %>%
+Tabstat <- mydatN %>%
   group_by(FileType, Country,Region) %>%
   summarize(Nbfiles = n()) %>%
   adorn_totals()
@@ -262,21 +275,23 @@ kable(Tabstat  )
 
 # Renaming and Moving pictures to destination directories
 
+# Final naming is decided here!!!
+
 ```{r Final naming}
 
 # If one region, no sub-directory  --> counting that
-mydat <- mydat %>%
+mydatN <- mydatN %>%
   group_by(Country) %>%
   mutate( NbRegion = n_distinct(Region))
 
 # If many pictures the same day, then special event
-mydat <- mydat %>%
+mydatN <- mydatN %>%
   group_by(Date) %>%
   mutate( NbPicturesDay = n_distinct(FileName)) 
 
 # Defining Directories and Sub-Directories
 
-mydat <- mydat %>%
+mydatN <- mydatN %>%
   mutate(
     MainDir = Country,
     Sub = ifelse(NbPicturesDay >50, Date, Region), 
@@ -284,13 +299,13 @@ mydat <- mydat %>%
   )
 
 # Definition of Directories and Sub
-mydat <-  mydat  %>%
+mydatN <-  mydatN  %>%
   mutate(
         Newdir = case_when(
-          is.na(Country)  ~ paste0(Year, "/",Month),
-          !is.na(Country) & is.na(Region) ~ paste0(Year, "/", MainDir),
-          !is.na(Country) & !is.na(Region) & NbSub == 1  ~ paste0(Year, "/", MainDir),
-          !is.na(Country) & !is.na(Region)  & NbSub >1 ~ paste0(Year, "/", MainDir, "/", Sub)
+          is.na(Country)  ~ paste0(Year, "/",Month, "/"),
+          !is.na(Country) & is.na(Region) ~ paste0(Year, "_", MainDir, "/"),
+          !is.na(Country) & !is.na(Region) & NbSub == 1  ~ paste0(Year, "_", MainDir, "/"),
+          !is.na(Country) & !is.na(Region)  & NbSub >1 ~ paste0(Year, "_", MainDir, "/", Sub, "/")
           
           )
         )
@@ -300,34 +315,58 @@ mydat <-  mydat  %>%
 
 ###  Trying to refine the information on the location using Natural earth...
 
-```{r}
+### Instead of copying, we rename!!! 
 
+```{r}
+### ACHTUNG !!!! 
+# 
+for(i in 1:nrow(mydatN)) {       # for-loop over rows
+   # Create directory if doesn't exist
+   ifelse(dir.exists(paste0(ToDir, mydatN[i, "Newdir"])), FALSE,
+          dir.create(paste0(ToDir, mydatN[i, "Newdir"]), recursive = TRUE))
+
+  # rename file
+   if (file.exists(paste0(SourceDir, mydatN[i, "FileName"]))) {
+   file.rename(from = paste0(SourceDir, mydatN[i, "FileName"]),
+             to = paste0(ToDir, mydatN[i, "Newdir"],"/", mydatN[i, "NewName"]))
+   }
+   else {
+    warning(paste("File does not exist:", paste0(SourceDir, mydatN[i, "FileName"])))
+  }
+
+}
 ```
+
 
 
 ```{r Copying}
 ### ACHTUNG !!!! 
 # 
-# for(i in 1:nrow(mydat)) {       # for-loop over rows
+# for(i in 1:nrow(mydatN)) {       # for-loop over rows
 #    # Create directory if doesn't exist
-#    ifelse(dir.exists(paste0(ToDir, mydat[i, "Newdir"])), FALSE,
-#           dir.create(paste0(ToDir, mydat[i, "Newdir"]), recursive = TRUE))
+#    ifelse(dir.exists(paste0(ToDir, mydatN[i, "Newdir"])), FALSE,
+#           dir.create(paste0(ToDir, mydatN[i, "Newdir"]), recursive = TRUE))
 # 
 #   # Copy file
-#   file.copy(from = paste0(SourceDir, mydat[i, "FileName"]),
-#             to = paste0(ToDir, mydat[i, "Newdir"],"/", mydat[i, "NewName"]))
+#   file.copy(from = paste0(SourceDir, mydatN[i, "FileName"]),
+#             to = paste0(ToDir, mydatN[i, "Newdir"],"/", mydatN[i, "NewName"]))
 # 
 # }
 
 
 ```
 
-### Where the `r nrow(mydat)` pictures have been copied? 
+
+
+
+
+
+### Where the `r nrow(mydatN)` pictures have been copied? 
 
 
 ```{r}
 # Compiling the number of files that should be in each  new repository
-mystat <- mydat %>%
+mystat <- mydatN %>%
   group_by(Newdir) %>%
   summarize(NbInNewDir = n()) %>%
   adorn_totals()
@@ -340,11 +379,11 @@ SourceText <- str_replace_all(SourceDir, "[/:]", "_")
 SourceText <- gsub("c__", "", SourceText)
  
 write.xlsx(mystat,
-           file=paste(ToDir,"Logs/Log-",SourceText,"-N=", nrow(mydat), "-(", ymd(Sys.Date()),").xlsx", sep=""))
+           file=paste(ToDir,"Logs/Log-",SourceText,"-N=", nrow(mydatN), "-(", ymd(Sys.Date()),").xlsx", sep=""))
 
 ```
 
-We also save this information in a log excel file^[ The file is  `r paste(ToDir,"Log-",SourceText,"-N=", nrow(mydat), "-(", ymd(Sys.Date()),").xlsx", sep="")` ]
+We also save this information in a log excel file^[ The file is  `r paste(ToDir,"Log-",SourceText,"-N=", nrow(mydatN), "-(", ymd(Sys.Date()),").xlsx", sep="")` ]
 
 # Checking that everything went fine
 
@@ -362,9 +401,9 @@ NameFinal <- word( gsub("-", " ", MyCopiedfiles), -1)  # <--- Final name has dat
 
 NbCommon <- length(intersect(NameFinal, NamesOriginal))
 
-message <- ifelse( NbCommon == nrow(mydat),
+message <- ifelse( NbCommon == nrow(mydatN),
                    paste("Everything went well (", NbCommon , "files copied)"),
-                   paste( "**Problem**: there are **", nrow(mydat) - NbCommon, "** files missing!" )) 
+                   paste( "**Problem**: there are **", nrow(mydatN) - NbCommon, "** files missing!" )) 
 
 ```
 
@@ -376,14 +415,14 @@ message <- ifelse( NbCommon == nrow(mydat),
 # text to be displayed on pop-ups
 
 center <- "<div style='text-align:center'>"
-name <- paste0(center, "<b>", mydat$FileName , "</b>", "</div>")
-year <- paste0(center,"Year=",  mydat$Year, " </div>")
+name <- paste0(center, "<b>", mydatN$FileName , "</b>", "</div>")
+year <- paste0(center,"Year=",  mydatN$Year, " </div>")
 imgsrc <- paste0(SourceDir,"/IMG_0311.JPG")
 img <- paste0(center, "<img src= '", imgsrc,"' />")
 
 ### Not the right order of  images!! 
 
-mydat %>%
+mydatN %>%
   filter(FileType == "JPEG" & GPSLatitude != 0) %>%
   leaflet() %>%
   addProviderTiles("Esri.WorldImagery") %>%
