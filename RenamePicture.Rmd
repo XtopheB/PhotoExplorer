@@ -1,0 +1,536 @@
+---
+title: "Automatic Rename Pictures with R "
+subtitle: "An experiment with exif and geolovation"
+author: "Christophe Bontemps"
+date: "2024-03-16"
+output:
+  html_document:
+    code_folding: show
+    toc: yes
+    toc_float: true
+    highlight: tango
+    number_sections: true
+    number-depth: 1
+    theme: lumen
+  pdf_document: default
+always_allow_html: true
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+# Global options
+knitr::opts_chunk$set(echo = FALSE)
+
+# Other options used here 
+opts_chunk$set(warning = FALSE, message = FALSE,
+               fig.pos = "!H", fig.align = "center",
+               autodep = TRUE, tidy = FALSE)
+```
+
+
+```{r libraries}
+# To extract information from images 
+library(exifr)
+
+# data management 
+library(dplyr)
+library(janitor)
+library(openxlsx)
+
+# Tables
+library(kableExtra)
+
+# For maps and geocoding
+library(tidygeocoder)
+library(leaflet)
+library(maps)
+
+```
+
+
+
+```{r exiftoolconfig}
+#May be needed to find exiftool (in Windows directory or anywhere in the path)
+# From https://exiftool.org/install.html
+
+# library(exiftoolr)
+# configure_exiftoolr()
+```
+
+# Parameters
+
+## Basic parameters
+There are basically 2 types of information
+
+ * Folders for file copying
+ * Type of files to be considered (*e.g.*  .jpeg, .png)
+
+This is where I define source and destination, obviously. It is possible to use a list of folders for the source to avoid tedious repetitions (Todo)
+
+```{r paths}
+# We only rename  pictures and videos
+mypattern  <- "*.jpg|*.JPG|*.PNG|*.MP4|*.MOV"
+
+# Source directory
+SourceDir <-  "c:/temp/Photos/TestRenamePictures/Original/202405__"
+# Destination 
+ToDir <- "c:/temp/Photos/TestRenamePictures/Renamed/"
+
+# List of  files that will be renamed
+files <- list.files(path = SourceDir, pattern = mypattern,  full.names = TRUE)
+# Count the number of files
+NbFiles <- length(files)
+
+```
+
+We will transfer **`r NbFiles`** pictures from *`r SourceDir`* to several sub-directories in *`r ToDir`*.
+
+**NB**: *One idea would be also to do batches of transfers*
+
+## Special events
+There may be special events that require a specific tag/folder (*e.g.*  festival, concert). This information should be stored in an external file. 
+
+**Todo**
+
+## Triggers for automatic detection of  events
+
+```{r}
+
+# Nb of pictures taken the same day  --> Signaling a touristic trip
+NbPicturesDayMax <- 50
+
+# Nb of pictures taken in the same region  --> Signaling region folder will be too large 
+NbPicturesRegionMax <- 50
+```
+
+## Parameters on the desired output
+
+**Todo**
+ - Define the minimum number of pictures per directory! 
+ 
+
+# Extract data from pictures
+
+## Extract exif info
+Once exiftool is correctly installed^[See the information on how to install [https://exiftool.org/install.html](https://exiftool.org/install.html)], one can collect all the information embedded in our pictures. Here we only collect the files with extensions *`r mypattern`*.
+
+We do this only if exif has not been done already for the same files
+
+```{r exifextraction  }
+# Construct unique exif Filename to save
+exifFileName <- paste0(SourceDir,"exif",NbFiles,".Rdata")
+
+# Listing of files
+Myfiles <- list.files(path = SourceDir,
+                      recursive=TRUE,
+                      pattern = mypattern, full.names=TRUE)
+
+# Check if the file exists
+if (file.exists(exifFileName)) {
+  # Load the file if it exists
+  print("Loading existing Exif file ;-) ")
+  load(exifFileName)
+} else {
+  print("Exif file does not exist: Extracting (can be long)")
+  # This is long... 
+  exifinfo <- read_exif(Myfiles, quiet = TRUE)
+  
+  print(paste("Saving exif file", exifFileName) )
+  save(exifinfo, file = exifFileName)
+}
+```
+
+We have now the complete information on **`r nrow(exifinfo)`** pictures, among which **`r nrow(subset(exifinfo, FileType =="JPEG"))`** are jpegs. 
+
+
+```{r selecting variables }
+
+# Using the data 
+# https://www.r-bloggers.com/2016/11/extracting-exif-data-from-photos-using-r/
+# and https://www.r-bloggers.com/2016/11/create-an-interactive-web-map-with-geotagged-photos/
+
+exifdat <- exifinfo %>%
+  select(
+    SourceFile, FileName, FileType, FileModifyDate, DateTimeOriginal,
+    GPSLongitude, GPSLatitude, GPSAltitude)
+
+```
+
+## Refining the information
+
+We need a bit of **cleaning** there, in particular, we have date format and, as usual, this is needs to be extracted if one wants to use the year as a sorting variable. Also some coordinates (GPS) are missing and values should be imputed (as zeros here) for *maps* to work (see below).
+
+
+```{r DateInfo}
+library(lubridate)
+library(maps)
+
+# Adding date 
+mydat <- exifdat %>%
+  mutate(DateTimeOriginal = ifelse(is.na(DateTimeOriginal),
+                                   FileModifyDate,
+                                   DateTimeOriginal)) %>%
+  mutate(Date = ymd_hms(DateTimeOriginal)
+  ) %>%
+  arrange(Date) %>%
+ tidyr::separate(Date, c("Year", "rest"), extra = "merge", fill = "left")  %>%
+ tidyr::separate(rest, c("Month", "rest2"), extra = "merge", fill = "left") %>%
+ tidyr::separate(rest2, c("Day", "Time"),  extra = "merge", fill = "left") %>%
+ mutate(
+   Date =  paste0(Year,"-",Month, "-", Day),  
+   NewName = paste0(Date, "-",  FileName))
+```
+
+## Identifying pictures that will be renamed
+
+TODO: 
+- Manage pictures with no issues
+- Pictures with no good information --> decide what to do. 
+
+# Getting Geolocalisation
+
+```{r}
+# Replace missing coordinates by (0,0)
+mydat <- mydat %>%
+  mutate(GPSLongitude =  ifelse(is.na(GPSLatitude), 0 ,GPSLongitude),
+         GPSLatitude =  ifelse(is.na(GPSLatitude), 0 ,GPSLatitude)) 
+```
+
+## Getting information from latitutde and longitude
+
+We use package**tidygeocoder** for getting this information 
+
+```{r}
+# Using library(tidygeocoder)
+# https://jessecambon.github.io/tidygeocoder/articles/tidygeocoder.html
+
+# Creating OSM unique name 
+osmfileName <- paste0(SourceDir,"osmdata",NbFiles,".Rdata")
+
+# Check if the file exists
+if (file.exists(osmfileName)) {
+  # Load the file if it exists
+  print("Loading  existing osm file ;-) ")
+  load(osmfileName)
+} else {
+print("Reverse location using OSM data ")
+osmdata <- reverse_geo(lat = mydat$GPSLatitude, long = mydat$GPSLongitude,
+              method = "osm",
+              full_results = TRUE)
+print(paste("Print OSM data ",osmfileName ))
+save(osmdata, file = osmfileName)
+}
+  
+# this operation is also very long...
+```
+
+
+```{r}
+# Extracting OSM data and merging
+revdata <- osmdata %>%
+  select( "lat", "long",  "place_id", "city", "addresstype", "name",  "country", "country_code",  "address")%>%
+  rename(osmcity = city, 
+         osmcountry = country, 
+         osmcode = country_code) %>%
+  distinct(lat, long, .keep_all = TRUE)
+
+mydatosm <- left_join(mydat, revdata, 
+              by = join_by(GPSLatitude == lat, GPSLongitude == long ) )
+
+```
+
+
+###  Collecting country information 
+
+We use the package *maps* to recover the information from GPS (latitude, longitude). We will use this information to organize the files into folder names with information on  years and  location. 
+
+```{r CountryInfo}
+# Using the maps library
+
+# Adding Countries from  GPS 
+mydatN <- mydatosm %>%
+  mutate(CountryGPS = maps::map.where(database="world", GPSLongitude, GPSLatitude, na.rm=TRUE),
+         DeptGPS = maps::map.where(database="france", GPSLongitude, GPSLatitude, na.rm=TRUE))
+
+# Create CountryShort and Region for detailed information 
+mydatN <- mydatN %>%
+  tidyr::extract(CountryGPS, c("Countryshort", "RegionGPS"),
+                 regex = "([[:alnum:]]+):([[:alnum:]]+)",
+                 remove = FALSE)%>%
+  mutate(CountryGPS = ifelse(!is.na(Countryshort) , Countryshort, CountryGPS), 
+         RegionGPS = ifelse(!is.na(DeptGPS) , DeptGPS, RegionGPS) )%>%
+ select( !c("Countryshort", "DeptGPS"))
+```
+
+
+```{r CountryInfoOld}
+# Identifying specific places/events
+### Identifying  P2000
+# mydatN <- mydatN %>%
+#   mutate(Country = ifelse(GPSAltitude >1700, "P2000", Country)) 
+#  
+# ####  Festa Design
+# mydatN <- mydatN %>%
+#   mutate(Region = ifelse(Date %in% c("2022-11-19", "2022-11-20"), "Design-Festa", Region)) 
+  
+```
+
+
+```{r}
+mydatN <- mydatN %>%
+  mutate(Country = case_when( osmcode =="jp" ~ "Japan",
+                              is.na(CountryGPS) ~ osmcountry,
+                             .default =  CountryGPS),
+         Region =  case_when((GPSAltitude >1700) & (CountryGPS =="France") ~ "P2000",
+                             grepl("balma", address, ignore.case = TRUE)~ "Balma", 
+                             Date %in% c("2022-11-19", "2022-11-20") ~ "Design-Festa", 
+                             .default =  RegionGPS)
+         )
+  
+                              
+```
+
+## Test on the outcome
+
+TODO: Managing issues with this 
+
+* Bad names or Japanese city with Japanese characters
+* Not found location
+
+###  Some statistics by location 
+
+We have **`r nrow(mydat)`** files in the directory  *`r SourceDir`* , and **`r nrow(subset(mydatN, Country != ""))`**  with country location. 
+
+
+```{r}
+
+Tabstat <- mydatN %>%
+  group_by(FileType, Country,Region) %>%
+  summarize(Nbfiles = n(), .groups = "drop") %>% 
+  arrange(desc(Nbfiles)) %>%
+  group_split(FileType) %>%
+  bind_rows() %>%
+  adorn_totals()
+
+#Note:  .groups = "drop": Stops summarize() from keeping grouping
+
+kable(Tabstat  )
+
+```
+
+## Managing MOV
+
+**TODO**
+
+## Managing NA
+
+**TODO**
+
+# Create renaming table
+
+Create, visualize and save table with old and new names
+
+## Refine table with specific events
+
+* Load a table with specific events
+* Identify files corresponding to specific events
+* Update renaming table
+* Triggers using Nb of pictures by day/region
+* Refine to have a minum of files per directory --> **TODO**
+
+
+# Defining destination directories
+
+## Counts of pictures by day, region,  country 
+
+```{r Finalcounts}
+# If one region, no sub-directory  --> counting that
+mydatN <- mydatN %>%
+  group_by(Country, Year) %>%
+  mutate( NbRegion = n_distinct(Region)
+          )
+
+# If many pictures the same day, then special event sub 
+mydatN <- mydatN %>%
+  group_by(Date) %>%
+  mutate( NbPicturesDay = n_distinct(FileName)) 
+
+# If many pictures in the same Region  then special sub  
+mydatN <- mydatN %>%
+  group_by(Country, Year, Region) %>%
+  mutate( NbPicturesRegion = n_distinct(Date))
+
+```
+
+##  Final naming decisions
+
+```{r Final naming}
+# Defining main rule for Directories and Sub-Directories
+mydatN <- mydatN %>%
+  mutate(
+    MainDir = ifelse(!is.na(Country), Country, "Other"),
+    Sub = Region)
+
+
+# Defining Directories and Sub-Directories
+# triggers for subdirectory in final name 
+
+mydatN <- mydatN %>%
+   mutate(Sub = case_when(NbPicturesDay > NbPicturesDayMax ~ name,
+                          NbPicturesRegion > NbPicturesRegionMax ~ name, 
+                             .default =  Sub)
+   )
+  
+# Definition of Directories and Sub
+
+mydatN <-  mydatN  %>%
+  mutate(
+        Newdir = case_when(
+           is.na(Sub) ~ paste0(Year, "_", MainDir),
+           (!is.na(Sub) &  Sub !="" ) ~ paste0(Year, "_", MainDir, "/", Sub, "/"), 
+            .default =  paste0(Year, "_", MainDir, "/")
+            )
+          )
+        
+
+```
+
+
+## Where the `r nrow(mydatN)` pictures will be copied? 
+
+```{r}
+# Compiling the number of files that should be in each  new repository
+mystat <- mydatN %>%
+  group_by(Country, Newdir) %>%
+  summarize(NbInNewDir = n(), .groups = "drop") %>%
+  arrange(Country, desc(NbInNewDir)) %>%
+  group_split(Country) %>%
+  adorn_totals()
+
+ kable(mystat)
+```
+
+## Adjusting one last time 
+
+**Todo** 
+
+- If  less than  XXX pictures are in a folder then revise  rule!! 
+ 
+
+
+## Creating  origin destination table 
+
+
+```{r}
+# save the file 
+library(stringr)
+SourceText <- str_replace_all(SourceDir, "[/:]", "_")
+SourceText <- gsub("c__", "", SourceText)
+ 
+write.xlsx(mystat,
+           file=paste(ToDir,"Logs/Log-",SourceText,"-N=", nrow(mydatN), "-(", ymd(Sys.Date()),").xlsx", sep=""))
+
+```
+
+
+Saving information of old and new names in a csv file **TODO**
+
+We also save this information in a log excel file^[ The file is  `r paste(ToDir,"Log-",SourceText,"-N=", nrow(mydatN), "-(", ymd(Sys.Date()),").xlsx", sep="")` ]
+
+
+
+# Remaning (! Danger !) 
+Instead of copying, we rename !! 
+
+```{r}
+## ACHTUNG !!!!
+
+for(i in 1:nrow(mydatN)) {       # for-loop over rows
+   # Create directory if doesn't exist
+   ifelse(dir.exists(paste0(ToDir, mydatN[i, "Newdir"])), FALSE,
+          dir.create(paste0(ToDir, mydatN[i, "Newdir"]), recursive = TRUE))
+
+  # rename file
+   if (file.exists(paste0(SourceDir, mydatN[i, "FileName"]))) {
+   file.rename(from = paste0(SourceDir, mydatN[i, "FileName"]),
+             to = paste0(ToDir, mydatN[i, "Newdir"],"/", mydatN[i, "NewName"]))
+   }
+   else {
+    warning(paste("File does not exist:", paste0(SourceDir, mydatN[i, "FileName"])))
+  }
+}
+
+```
+
+## Managing results , veryfing results..
+**TODO**
+- List (count nb of file in new directory )
+- List files not renamed
+- Verify counts! 
+
+
+```{r Copying}
+### ACHTUNG !!!! 
+# 
+# for(i in 1:nrow(mydatN)) {       # for-loop over rows
+#    # Create directory if doesn't exist
+#    ifelse(dir.exists(paste0(ToDir, mydatN[i, "Newdir"])), FALSE,
+#           dir.create(paste0(ToDir, mydatN[i, "Newdir"]), recursive = TRUE))
+# 
+#   # Copy file
+#   file.copy(from = paste0(SourceDir, mydatN[i, "FileName"]),
+#             to = paste0(ToDir, mydatN[i, "Newdir"],"/", mydatN[i, "NewName"]))
+# 
+# }
+
+
+```
+
+
+## Checking that everything went fine
+
+We now do a count of the number of pictures in the destination directory
+
+```{r Verif}
+MyCopiedfiles <- list.files(path = ToDir,
+                    recursive=TRUE,
+                    pattern = mypattern, full.names=TRUE)
+
+# Idea is to match the names between Myfiles and MyCopiedfiles
+
+NamesOriginal<- word( gsub("/", " ", Myfiles), -1)     # removing "" from full name and take the last word
+NameFinal <- word( gsub("-", " ", MyCopiedfiles), -1)  # <--- Final name has date prefix
+
+NbCommon <- length(intersect(NameFinal, NamesOriginal))
+
+message <- ifelse( NbCommon == nrow(mydatN),
+                   paste("Everything went well (", NbCommon , "files copied)"),
+                   paste( "**Problem**: there are **", nrow(mydatN) - NbCommon, "** files missing!" )) 
+
+```
+
+### Result of the test: `r message`
+
+
+
+# Interactive map with leaflet
+
+```{r}
+# text to be displayed on pop-ups
+
+center <- "<div style='text-align:center'>"
+name <- paste0(center, "<b>", mydatN$FileName , "</b>", "</div>")
+year <- paste0(center,"Year=",  mydatN$Year, " </div>")
+imgsrc <- paste0(SourceDir,"/IMG_0311.JPG")
+img <- paste0(center, "<img src= '", imgsrc,"' />")
+
+### Not the right order of  images!! 
+
+mydatN %>%
+  filter(FileType == "JPEG" & GPSLatitude != 0) %>%
+  leaflet() %>%
+  addProviderTiles("Esri.WorldImagery") %>%
+  addMarkers(~ GPSLongitude, ~ GPSLatitude, popup = paste(name, year, img))  
+```
+
+
