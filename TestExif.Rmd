@@ -56,7 +56,7 @@ This is where I define source and destination, obviously. It is possible to use 
 mypattern  <- "*.jpg|*.JPG|*.PNG|*.MP4|*.MOV"
 
 # Source directory
-SourceDir <-  "c:/temp/Photos/TestRenamePictures/Original/"
+SourceDir <-  "c:/temp/Photos/TestRenamePictures/Original/202405__"
 # Destination 
 ToDir <- "c:/temp/Photos/TestRenamePictures/Renamed/"
 
@@ -282,7 +282,7 @@ kable(Tabstat  )
 
 # Renaming and Moving pictures to destination directories
 
-### Counts of picytures by day, region country 
+### Counts of pictures by day, region,  country 
 
 ```{r Finalcounts}
 # If one region, no sub-directory  --> counting that
@@ -291,20 +291,16 @@ mydatN <- mydatN %>%
   mutate( NbRegion = n_distinct(Region)
           )
 
-# If many pictures the same day, then special event
+# If many pictures the same day, then special event sub 
 mydatN <- mydatN %>%
   group_by(Date) %>%
   mutate( NbPicturesDay = n_distinct(FileName)) 
 
-# If many pictures in the same Region 
+# If many pictures in the same Region  then special sub  
 mydatN <- mydatN %>%
   group_by(Country, Year, Region) %>%
   mutate( NbDaysRegion = n_distinct(Date))
 
-# To avoid same directory for many pictures
-mydatN <- mydatN %>%
-  group_by(Country, Year) %>%
-  mutate( NbRegion = n_distinct(Region))
 ```
 
 ###  Final naming is decided here!!!
@@ -341,20 +337,6 @@ mydatN <-  mydatN  %>%
           )
         
 
-## Old
-
-# mydatN <-  mydatN  %>%
-#   mutate(
-#         Newdir = case_when(
-#           is.na(Country)  ~ paste0(Year, "/",Month, "/"),
-#           !is.na(Country) & is.na(Region) ~ paste0(Year, "_", MainDir, "/"),
-#           !is.na(Country) & !is.na(Region) & NbSub == 1  ~ paste0(Year, "_", MainDir, "/"),
-#           !is.na(Country) & !is.na(Region)  & NbSub >1 ~ paste0(Year, "_", MainDir, "/", Sub, "/")
-#           
-#           )
-#         )
-
-
 ```
 
 ###  Trying to refine the information on the location using Natural earth...
@@ -362,22 +344,22 @@ mydatN <-  mydatN  %>%
 ### Instead of copying, we rename!!! 
 
 ```{r}
-### ACHTUNG !!!! 
-# # 
-# for(i in 1:nrow(mydatN)) {       # for-loop over rows
-#    # Create directory if doesn't exist
-#    ifelse(dir.exists(paste0(ToDir, mydatN[i, "Newdir"])), FALSE,
-#           dir.create(paste0(ToDir, mydatN[i, "Newdir"]), recursive = TRUE))
-# 
-#   # rename file
-#    if (file.exists(paste0(SourceDir, mydatN[i, "FileName"]))) {
-#    file.rename(from = paste0(SourceDir, mydatN[i, "FileName"]),
-#              to = paste0(ToDir, mydatN[i, "Newdir"],"/", mydatN[i, "NewName"]))
-#    }
-#    else {
-#     warning(paste("File does not exist:", paste0(SourceDir, mydatN[i, "FileName"])))
-#   }
-# }
+## ACHTUNG !!!!
+
+for(i in 1:nrow(mydatN)) {       # for-loop over rows
+   # Create directory if doesn't exist
+   ifelse(dir.exists(paste0(ToDir, mydatN[i, "Newdir"])), FALSE,
+          dir.create(paste0(ToDir, mydatN[i, "Newdir"]), recursive = TRUE))
+
+  # rename file
+   if (file.exists(paste0(SourceDir, mydatN[i, "FileName"]))) {
+   file.rename(from = paste0(SourceDir, mydatN[i, "FileName"]),
+             to = paste0(ToDir, mydatN[i, "Newdir"],"/", mydatN[i, "NewName"]))
+   }
+   else {
+    warning(paste("File does not exist:", paste0(SourceDir, mydatN[i, "FileName"])))
+  }
+}
 
 ```
 
