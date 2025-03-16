@@ -1,0 +1,25 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+
+# Outputs
+*.tex
+*.pdf
+*.html
+
+# directories (generic)
+*_cache/
+*_files/
+
+# directories (specific)
+Output/
+Data/
+SourceData/
+DataCEBD/
+
+# R specific
+*.Rhistory
+*.RData
+*.DS_Store
+*.Rproj
