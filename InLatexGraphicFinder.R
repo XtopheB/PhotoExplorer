@@ -17,12 +17,6 @@ latex_file <-  paste0(main_dir,latex_name,".tex")
 # 📤 Destination CSV output
 output_csv <- paste0(main_dir,"AllGraphics-", latex_name,".csv")
 
-# # List of folders to search
-# search_dirs <- c("c:/Chris/Visualisation/Presentations/Graphics",
-#                  "c:/Chris/Visualisation/Presentations/Graphics/Lies",
-#                  "c:/Chris/Visualisation/Presentations/Graphics/Logos"
-# )
-
 
 # 🧪 Read the LaTeX file line by line
 lines <- read_lines(latex_file)
