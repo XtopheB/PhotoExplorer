@@ -8,6 +8,14 @@ csv_path <- "c:/Chris/UN-ESCAP/MyCourses2025/TAPOS25/Slides/Latex_HowToLie_graph
 # Source folder where the files are stored
 source_folder <- "c:/Chris/Visualisation/Presentations/Graphics/Lies"
 
+# Multiple directories
+# List of folders to search
+search_dirs <- c("c:/Chris/Visualisation/Presentations/Graphics",
+                 "c:/Chris/Visualisation/Presentations/Graphics/Lies",
+                 "c:/Chris/Visualisation/Presentations/Graphics/Logos"
+                 )
+
+
 # Destination folder where matching files should be copied
 destination_folder <- "C:/Temp/MyGraphics"
 
@@ -16,20 +24,29 @@ if (!dir_exists(destination_folder)) {
   dir_create(destination_folder)
 }
 
-# Read the CSV file into a data frame
+# Read the CSV file 
 file_list <- read_csv(csv_path, col_names = FALSE) %>%
   pull(1) %>% # Assuming filenames are in the first column
   str_trim()   # Remove leading/trailing spaces
 
-# Get full paths of matching files
-source_files <- path(source_folder, file_list)
-print(source_files)
+# 🔍 Search through directories
+found_files <- map_chr(file_list, function(file_name) {
+  possible_paths <- path(search_dirs, file_name)
+  existing_path <- possible_paths[file_exists(possible_paths)]
+  if (length(existing_path) > 0) return(existing_path[1])
+  return(NA_character_) # Not found
+}) %>%
+  discard(is.na)
 
-# Filter out files that don't exist
-existing_files <- source_files[file_exists(source_files)]
 
-# Copy them to the destination folder
-file_copy(existing_files, path(destination_folder, path_file(existing_files)), overwrite = TRUE)
 
-# Print summary
-cat("Copied", length(existing_files), "files to", destination_folder, "\n")
+
+
+# Copy files
+file_copy(found_files, path(destination_folder, path_file(found_files)), overwrite = TRUE)
+
+# Summary
+cat("✅ Copied", length(found_files), "files (over",length(source_files), ") to", destination_folder, "\n")
+
+
+
