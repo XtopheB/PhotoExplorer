@@ -1,17 +1,22 @@
 # Searching for files in sub directories 
 # Returning list of directories where the files are used
-# Output can be directly used in Latex
+# Input: A CSV with the list of all files in LaTeX
+#        List of directories where to search
+# Output: txt with list of directories where the files are for inclusion in LaTeX 
+
 
 library(tidyverse)
 library(fs)
 
-
 ## Latex root directory with .csv 
-csv_dir <- "c:/Chris/UN-ESCAP/MyCourses2025/TAPOS25/Slides/"
-csv_name <- "Latex_HowToLie_graphics_files.csv"
+main_dir <- "c:/Chris/UN-ESCAP/MyCourses2025/TAPOS25/Slides/"
+latex_name <- "DV-Webinar-How-Not-ToLie"
 
-# Full path for csv with files to search
-csv_path <- paste0(csv_dir,csv_name)
+# Csv input with all graphics names
+csv_name <-paste0(main_dir,"AllGraphics-", latex_name,".csv")
+
+# Output file 
+output_file <- paste0(main_dir,"ListGraphics-",latex_name, ".csv")
 
 # List of folders to search
 search_dirs <- c("c:/Chris/Visualisation/Presentations/Graphics",
@@ -19,9 +24,8 @@ search_dirs <- c("c:/Chris/Visualisation/Presentations/Graphics",
                  "c:/Chris/Visualisation/Presentations/Graphics/Logos"
                  )
 
-
 # Destination folder where matching files should be copied
-destination_folder <- "c:/Chris/UN-ESCAP/MyCourses2025/TAPOS25/Slides/Graphics"
+destination_folder <-  paste0(main_dir,"Graphics")
 
 # Create destination folder if it doesn't exist
 if (!dir_exists(destination_folder)) {
@@ -29,7 +33,7 @@ if (!dir_exists(destination_folder)) {
 }
 
 # Read the CSV file 
-file_list <- read_csv(csv_path, col_names = FALSE) %>%
+file_list <- read_csv(csv_name, col_names = FALSE) %>%
   pull(1) %>% # Assuming filenames are in the first column
   str_trim()   # Remove leading/trailing spaces
 
@@ -63,15 +67,11 @@ write_csv(search_results, search_log)
 write_csv(search_results %>% filter(!Found) %>% select(Requested), missing_file_log)
 
 # 🖨️ Console Summary
-cat("✅ Copied", nrow(found_files), "files.\n")
-cat("📂 Search log saved to:", search_log, "\n")
-cat("❌", sum(!search_results$Found), "files not found. Logged at:", missing_file_log, "\n")
 
-# 🖥️ Optional: Show where files were found
-if (nrow(found_files) > 0) {
-  cat("\n📁 Found file locations:\n")
-  print(found_files %>% select(Requested, FoundInFolder))
-}
+cat("Found", nrow(found_files), "files.\n")
+cat("Search log saved to:", search_log, "\n")
+cat("Not fund", sum(!search_results$Found), "files not found. Logged at:", missing_file_log, "\n")
+
 
 # Extract unique folder paths from found results
 unique_folders <- search_results %>%
@@ -79,28 +79,14 @@ unique_folders <- search_results %>%
   distinct(FoundInFolder) %>%
   pull(FoundInFolder)
 
-# Format as {path}
+# Format as {path} for LaTeX inclusion
 formatted_paths <- paste0("{", unique_folders, "/}")
 
-# Output file path
-folder_log <- file.path(destination_folder, "Graphicsfolders.txt")
-
 # Save to text file
-write_lines(formatted_paths, folder_log)
+write_lines(formatted_paths, paste0(main_dir,"ListGraphicsFolders.txt"))
 
 # 🖨️ Console confirmation
-cat("📄 Unique folders saved to:", folder_log, "\n")
-
-
-
-
-
-
-
-
-
-
-
+cat("📄 Unique folders saved to:",main_dir, "\n")
 
 
 ## Search through directories
@@ -127,22 +113,18 @@ not_found_files <- search_results %>%
   pull(FileName)
 
 
-# Copy files !!!!
-file_copy(found_files, path(destination_folder, path_file(found_files)), overwrite = TRUE)
-
 # Summary
-cat(" ____")
-cat( "✅ Copied", length(found_files), "files (over ",length(file_list), ") to", destination_folder)
+cat(" ____ \n")
+cat( "copied", length(found_files), "files (over ",length(file_list), ") to", main_dir)
   
   if (length(not_found_files) > 0) {
-  cat("❌ The following", length(not_found_files), "files were not found:\n")
+  cat("The following", length(not_found_files), "files were not found: \n "  )
   cat(paste("-", not_found_files), sep = "\n")
 } else {
-  cat("🎉 All files were found in the search directories and copied!\n")
+  cat("All files were found in the search directories and copied!\n")
 }
-
 # Save results including missing files
-write_csv(tibble(search_results), paste0(csv_dir,"Results-", csv_name))
+write_csv(tibble(search_results), output_file)
 
 
 
