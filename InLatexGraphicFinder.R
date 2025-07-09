@@ -1,23 +1,27 @@
-
+# Finds graphics names in a LaTeX paper
+# Output is a .csv file with all graphics used 
+# --> Serve as output to:
+# - DirFinder.R  (exports the list of dirs where the graphics are)
+# - GraphicFinder (copies graphics to a specific location)
 
 library(tidyverse)
 library(stringi)
 
-## Latex root directory with .csv 
+## Latex root directory with .csv (from InLaTexGraphicFinder.R)
 main_dir <- "c:/Chris/UN-ESCAP/MyCourses2025/TAPOS25/Slides/"
 latex_name <- "DV-Webinar-How-Not-ToLie"
 
-# Path to LaTeX file
+# Path to sourceLaTeX file
 latex_file <-  paste0(main_dir,latex_name,".tex")
 
 # 📤 Destination CSV output
-output_csv <- "C:/graphics/graphics_used.csv"
+output_csv <- paste0(main_dir,"AllGraphics-", latex_name,".csv")
 
-# List of folders to search
-search_dirs <- c("c:/Chris/Visualisation/Presentations/Graphics",
-                 "c:/Chris/Visualisation/Presentations/Graphics/Lies",
-                 "c:/Chris/Visualisation/Presentations/Graphics/Logos"
-)
+# # List of folders to search
+# search_dirs <- c("c:/Chris/Visualisation/Presentations/Graphics",
+#                  "c:/Chris/Visualisation/Presentations/Graphics/Lies",
+#                  "c:/Chris/Visualisation/Presentations/Graphics/Logos"
+# )
 
 
 # 🧪 Read the LaTeX file line by line
@@ -42,7 +46,7 @@ graphics_df <- tibble(FileName = graphic_names) %>%
   filter(!is.na(FileName))
 
 # 💾 Write to CSV
-write_csv(graphics_df, paste0(main_dir,latex_name,".csv"), col_names = FALSE)
+write_csv(graphics_df, output_csv, col_names = FALSE)
 
 # ✅ Summary
-cat("📄 Found", nrow(graphics_df), "graphics used in LaTeX.\nSaved to:", main_dir, "\n")
+cat("📄 Found", nrow(graphics_df), "graphics used in LaTeX.\n Saved to:", main_dir, "\n")
