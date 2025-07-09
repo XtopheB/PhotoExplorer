@@ -69,7 +69,7 @@ cat( "✅ Copied", length(found_files), "files (over ",length(file_list), ") to"
 }
 
 # Save results including missing files
-write_csv(tibble(search_results), paste0(csv_path,csv_name, "-searched.csv"))
+write_csv(tibble(search_results), paste0(csv_dir,"Results-", csv_name))
 
 
 
