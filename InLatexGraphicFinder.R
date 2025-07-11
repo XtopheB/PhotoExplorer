@@ -7,9 +7,9 @@
 library(tidyverse)
 library(stringi)
 
-## Latex root directory with .csv (from InLaTexGraphicFinder.R)
-main_dir <- "c:/Chris/UN-ESCAP/MyCourses2025/TAPOS25/Slides/"
-latex_name <- "DV-Webinar-How-Not-ToLie"
+## Latex root directory with .csv 
+main_dir <- "c:/Chris/UN-ESCAP/MyCourses2025/MLOS25/Slides/"
+latex_name <- "LectureWebinar1"
 
 # Path to sourceLaTeX file
 latex_file <-  paste0(main_dir,latex_name,".tex")
