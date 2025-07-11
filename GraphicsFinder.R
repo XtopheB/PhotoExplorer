@@ -3,6 +3,7 @@
 #       List of directories where to search
 # Output: Csv with list  all files and their location
 #         txt with list of directories where the files are for inclusion in LaTeX 
+# Option to Copy Grpahics: If TRUE all found graphics are copied! 
 
 library(tidyverse)
 library(fs)
@@ -29,7 +30,7 @@ MyDepth <- 4
 
 # Option to Copy graphics
 
-CopyGraphics <- TRUE
+CopyGraphics <- FALSE
 
 if(CopyGraphics) {
   # Destination folder where matching Graphics should be copied
