@@ -8,9 +8,9 @@
 library(tidyverse)
 library(fs)
 
-## Latex root directory with .csv 
-main_dir <- "c:/Chris/UN-ESCAP/MyCourses2025/TAPOS25/Slides/"
-latex_name <- "DV-Webinar-How-Not-ToLie"
+## Latex root directory with .csv (from InLaTexGraphicFinder.R)
+main_dir <- "c:/Chris/UN-ESCAP/MyCourses2025/MLOS25/Slides/"
+latex_name <- "LectureWebinar1"
 
 # Csv input with all graphics names
 csv_name <-paste0(main_dir,"AllGraphics-", latex_name,".csv")
@@ -20,9 +20,11 @@ output_file <- paste0(main_dir,"ListGraphics-",latex_name, ".csv")
 
 # List of folders to search
 search_dirs <- c("c:/Chris/Visualisation/Presentations/Graphics",
-                 "c:/Chris/Visualisation/Presentations/Graphics/Lies",
-                 "c:/Chris/Visualisation/Presentations/Graphics/Logos"
+                 "c:/Gitmain/MLCourse/UNML/Module0/M0_files",
+                 "c:/Chris/UN-ESCAP/MyCourses2022/MLOS2022/Slides/Graphics"
                  )
+# Depth of search 
+MyDepth <- 3
 
 # Destination folder where matching files should be copied
 destination_folder <-  paste0(main_dir,"Graphics")
@@ -42,8 +44,8 @@ missing_file_log <- file.path(destination_folder, "files_not_found.csv")
 search_log <- file.path(destination_folder, "files_found.csv")
 
 
-# 🔄 Gather all files from subfolders (max depth = 2)
-all_files <- map(search_dirs, ~ dir_ls(.x, recurse = TRUE, type = "file", depth = 2)) %>%
+# Gather all files from subfolders (max depth defined as parameter)
+all_files <- map(search_dirs, ~ dir_ls(.x, recurse = TRUE, type = "file", depth = MyDepth,  all = TRUE)) %>%
   flatten_chr()
 
 # 🔍 Match requested files
