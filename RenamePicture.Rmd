@@ -72,9 +72,9 @@ This is where I define source and destination, obviously. It is possible to use 
 mypattern  <- "*.jpg|*.JPG|*.PNG|*.MP4|*.MOV"
 
 # Source directory
-SourceDir <-  "c:/temp/Photos/TestRenamePictures/Original/202405__"
+SourceDir <-  "c:/temp/Photos/FullTest/"
 # Destination 
-ToDir <- "c:/temp/Photos/TestRenamePictures/Renamed/"
+ToDir <- "c:/temp/Photos/Fulltest/Renamed/"
 
 # List of  files that will be renamed
 files <- list.files(path = SourceDir, pattern = mypattern,  full.names = TRUE)
@@ -151,12 +151,20 @@ We have now the complete information on **`r nrow(exifinfo)`** pictures, among w
 
 exifdat <- exifinfo %>%
   select(
-    SourceFile, FileName, FileType, FileModifyDate, DateTimeOriginal,
-    GPSLongitude, GPSLatitude, GPSAltitude)
+    SourceFile, FileName, FileType, FileSize, Duration,  FileModifyDate, DateTimeOriginal,
+    GPSLongitude, GPSLatitude, GPSAltitude) %>%
+  arrange(FileModifyDate)
 
 ```
 
 ## Refining the information
+
+We only keep a few elements from the pictures' exif information. 
+
+```{r}
+head(exifdat)
+```
+
 
 We need a bit of **cleaning** there, in particular, we have date format and, as usual, this is needs to be extracted if one wants to use the year as a sorting variable. Also some coordinates (GPS) are missing and values should be imputed (as zeros here) for *maps* to work (see below).
 
@@ -180,7 +188,6 @@ mydat <- exifdat %>%
    Date =  paste0(Year,"-",Month, "-", Day),  
    NewName = paste0(Date, "-",  FileName))
 ```
-
 ## Identifying pictures that will be renamed
 
 TODO: 
@@ -196,9 +203,8 @@ mydat <- mydat %>%
          GPSLatitude =  ifelse(is.na(GPSLatitude), 0 ,GPSLatitude)) 
 ```
 
-## Getting information from latitutde and longitude
 
-We use package**tidygeocoder** for getting this information 
+We use package **tidygeocoder** (1.0.5) for getting this information 
 
 ```{r}
 # Using library(tidygeocoder)
@@ -213,12 +219,13 @@ if (file.exists(osmfileName)) {
   print("Loading  existing osm file ;-) ")
   load(osmfileName)
 } else {
-print("Reverse location using OSM data ")
-osmdata <- reverse_geo(lat = mydat$GPSLatitude, long = mydat$GPSLongitude,
-              method = "osm",
-              full_results = TRUE)
-print(paste("Print OSM data ",osmfileName ))
-save(osmdata, file = osmfileName)
+  print("Reverse location using OSM data ")
+  osmdata <- reverse_geo(lat = mydat$GPSLatitude, long = mydat$GPSLongitude,
+                method = "osm",
+                custom_query = list(`accept-language` = "en"),
+                full_results = TRUE)
+  print(paste("Print OSM data ",osmfileName ))
+  save(osmdata, file = osmfileName)
 }
   
 # this operation is also very long...
