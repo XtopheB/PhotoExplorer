@@ -76,6 +76,14 @@ SourceDir <-  "c:/temp/Photos/FullTest/"
 # Destination 
 ToDir <- "c:/temp/Photos/Fulltest/Renamed/"
 
+# Create destination folder if doesn't exit
+if (!dir.exists(ToDir)) {
+  dir.create(ToDir, recursive = TRUE)
+}
+```
+
+
+```{r paths}
 # List of  files that will be renamed
 files <- list.files(path = SourceDir, pattern = mypattern,  full.names = TRUE)
 # Count the number of files
@@ -453,7 +461,7 @@ mystat <- mydatN %>%
 
 **Todo** 
 
-- If  less than  XXX pictures are in a folder then revise  rule!! 
+- If  less than  XXX pictures are in a folder then revise  rule!!  But this may be don only **after** a full year has been sorted! 
  
 
 
@@ -465,9 +473,11 @@ mystat <- mydatN %>%
 library(stringr)
 SourceText <- str_replace_all(SourceDir, "[/:]", "_")
 SourceText <- gsub("c__", "", SourceText)
- 
-write.xlsx(mystat,
-           file=paste(ToDir,"Logs/Log-",SourceText,"-N=", nrow(mydatN), "-(", ymd(Sys.Date()),").xlsx", sep=""))
+
+
+toto <- mystat
+write.xlsx(,
+           file=paste(ToDir,"Log-",SourceText,"-N=", nrow(mydatN), "-(", ymd(Sys.Date()),").xlsx", sep=""))
 
 ```
 
@@ -503,6 +513,9 @@ for(i in 1:nrow(mydatN)) {       # for-loop over rows
 
 ## Managing results , veryfing results..
 **TODO**
+- Store table with full information in general folder --> use later to do maps of where we've been! 
+- Store/ identify short.mov somewhere --> Idea: rename to .mov instead of .MOV !!! (think that if we delete a file, well delete the .mov)
+- Rename long videos with more information in the name (leisure, name, etc..)
 - List (count nb of file in new directory )
 - List files not renamed
 - Verify counts! 
@@ -559,8 +572,8 @@ message <- ifelse( NbCommon == nrow(mydatN),
 
 center <- "<div style='text-align:center'>"
 name <- paste0(center, "<b>", mydatN$FileName , "</b>", "</div>")
-year <- paste0(center,"Year=",  mydatN$Year, " </div>")
-imgsrc <- paste0(SourceDir,"/IMG_0311.JPG")
+year <- paste0(center,"Date=",  mydatN$Year,"-",mydatN$Month, " </div>")
+imgsrc <- paste0( mydat$NewDir, mydat$NewName)
 img <- paste0(center, "<img src= '", imgsrc,"' />")
 
 ### Not the right order of  images!! 
@@ -570,6 +583,39 @@ mydatN %>%
   leaflet() %>%
   addProviderTiles("Esri.WorldImagery") %>%
   addMarkers(~ GPSLongitude, ~ GPSLatitude, popup = paste(name, year, img))  
+```
+
+```{r}
+library(leaflet)
+library(base64enc)
+library(dplyr)
+
+# Function to encode an image as base64
+encode_img <- function(path) {
+  encoded <- base64encode(path)
+  paste0("data:image/jpeg;base64,", encoded)
+}
+
+# Add encoded images to the data
+mydatN <- mydatN %>%
+  mutate(
+    encoded_img = sapply(file.path(NewDir, NewName), encode_img),
+    popup_html = paste0(
+      "<div style='text-align:center'>",
+      "<b>", FileName, "</b><br>",
+      "Date=", Year, "-", Month, "<br>",
+      "<img src='", encoded_img, "' width='150'/>",
+      "</div>"
+    )
+  )
+
+# Create Leaflet map
+mydatN %>%
+  filter(FileType == "JPEG" & GPSLatitude != 0) %>%
+  leaflet() %>%
+  addProviderTiles("Esri.WorldImagery") %>%
+  addMarkers(~GPSLongitude, ~GPSLatitude, popup = ~popup_html)
+
 ```
 
 
