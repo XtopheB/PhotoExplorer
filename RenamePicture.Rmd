@@ -618,7 +618,7 @@ sampled_data <-sampled_data %>%
       "Date=", Year, "-", Month, "<br><br>",
       "Folder= ", NewDir, "<br><br>",
       "<img src='", encoded_img, "' width='150'/><br>",
-      "<a href='file:///", FullNewPath, "' target='_blank'>Open File</a>",
+      "<a href='file://", FullNewDir, "' target='_blank'>Open Folder</a>",
       "</div>"
     )
   )
