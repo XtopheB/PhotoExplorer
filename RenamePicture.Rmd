@@ -395,8 +395,8 @@ mydatN <- mydatN %>%
 
 # If many pictures in the same Region  then special sub  
 mydatN <- mydatN %>%
-  group_by(Country, Year, Newcity) %>%
-  mutate( NbPicturesCity = n_distinct(Date))
+  group_by(Year,Country,Newcity) %>%
+  mutate( NbPicturesCity =  n_distinct(FileName) )
 
 ```
 
@@ -412,10 +412,10 @@ mydatN <- mydatN %>%
 
 # Defining Directories and Sub-Directories
 # triggers for SubDirdirectory in final name 
-
+# One case Only for now based on both location and nb of pictures
 mydatN <- mydatN %>%
-   mutate(SubDir = case_when(NbPicturesDay > NbPicturesDayMax ~ paste0(Month,"_", Newcity),
-                          NbPicturesCity > NbPicturesCityMax ~ paste0(Month,"_", Newcity),
+   mutate(SubDir = case_when((NbPicturesDay > NbPicturesDayMax & NbPicturesCity > NbPicturesCityMax)
+                             ~ paste0(Month,"_", Newcity),
                              .default =  SubDir)
    )
 
