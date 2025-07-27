@@ -99,8 +99,8 @@ There may be special events that require a specific tag/folder (*e.g.*  festival
 # Nb of pictures taken the same day  --> Signaling a touristic trip
 NbPicturesDayMax <- 50
 
-# Nb of pictures taken in the same region  --> Signaling region folder will be too large 
-NbPicturesRegionMax <- 50
+# Nb of pictures taken in the same City  --> Signaling region folder will be too large 
+NbPicturesCityMax <- 50
 ```
 
 ## Parameters on the desired output
@@ -235,7 +235,7 @@ if (file.exists(osmfileName)) {
 ```{r}
 # Extracting OSM data and merging
 revdata <- osmdata %>%
-  select( "lat", "long",  "place_id", "city", "addresstype", "name",  "country", "country_code",  "address")%>%
+  select( "lat", "long",  "country", "country_code", "city", "town" ,"type", "place_id", "name",  "class", "type", "village", "municipality", "county",   "state", "neighbourhood", "suburb", "leisure", "address")%>%
   rename(osmcity = city, 
          osmcountry = country, 
          osmcode = country_code) %>%
@@ -304,20 +304,43 @@ TODO: Managing issues with this
 * Bad names or Japanese city with Japanese characters
 * Not found location
 
-###  Some statistics by location 
+
+### Visualizing Missing
+
+```{r}
+library(naniar)
+vis_miss(mydatN, sort_miss =  TRUE )
+```
+
+
+>  We decide to use ***osmcity***, ***town*** and ***municipality*** to create information about the location ant the city level. . Seems to work wuite well! 
+ 
+```{r}
+# Define Newcity based on missing 
+mydatN <- mydatN %>%
+  mutate(Newcity = ifelse(is.na(osmcity), town, osmcity), 
+         Newcity = ifelse(is.na(Newcity), municipality, Newcity)) %>%
+  relocate(Newcity)
+
+
+```
+
+
+###  Some statistics by location with different granularity
 
 We have **`r nrow(mydat)`** files in the directory  *`r SourceDir`* , and **`r nrow(subset(mydatN, Country != ""))`**  with country location. 
 
-
 ```{r}
 
+
 Tabstat <- mydatN %>%
-  group_by(FileType, Country,Region) %>%
+  group_by(FileType, CountryGPS, Region, Newcity) %>%
   summarize(Nbfiles = n(), .groups = "drop") %>% 
   arrange(desc(Nbfiles)) %>%
   group_split(FileType) %>%
   bind_rows() %>%
-  adorn_totals()
+  adorn_totals() %>%
+  arrange(CountryGPS)
 
 #Note:  .groups = "drop": Stops summarize() from keeping grouping
 
@@ -325,36 +348,44 @@ kable(Tabstat  )
 
 ```
 
+
 ## Managing MOV
 
-**TODO**
+The idea would be: 
 
-## Managing NA
+* To move all .mov with *duration > 10s*  to a sub folder
+* To rename the .mov *with same name* as the corresponding jpeg 
 
-**TODO**
 
 # Create renaming table
 
-Create, visualize and save table with old and new names
-
+Create, visualize and save table with old and new names. 
 ## Refine table with specific events
 
-* Load a table with specific events
-* Identify files corresponding to specific events
-* Update renaming table
-* Triggers using Nb of pictures by day/region
-* Refine to have a minum of files per directory --> **TODO**
 
+* Identify files corresponding to specific events/places
+--> use information on leisure to identify climbing, etc..
+--> count pictures per location (fine granularity) and date(dya?)
+--> Triggers using Nb of pictures by day/region
+* Update renaming table
+* Refine to have a minim of files per directory --> Parameter to define at start
 
 # Defining destination directories
 
-## Counts of pictures by day, region,  country 
+The  final naming  structure should be 
+
+ year\_country>month\_Newcity\_year\_month\_day-formername
+
+
+## Counts of pictures by day, region, city
+
+The 3 main variables for directories and sub-directories are *Year*, *Country* and *Newcity*
 
 ```{r Finalcounts}
 # If one region, no sub-directory  --> counting that
 mydatN <- mydatN %>%
   group_by(Country, Year) %>%
-  mutate( NbRegion = n_distinct(Region)
+  mutate( NbCity = n_distinct(Newcity)
           )
 
 # If many pictures the same day, then special event sub 
@@ -364,8 +395,8 @@ mydatN <- mydatN %>%
 
 # If many pictures in the same Region  then special sub  
 mydatN <- mydatN %>%
-  group_by(Country, Year, Region) %>%
-  mutate( NbPicturesRegion = n_distinct(Date))
+  group_by(Country, Year, Newcity) %>%
+  mutate( NbPicturesCity = n_distinct(Date))
 
 ```
 
@@ -376,25 +407,26 @@ mydatN <- mydatN %>%
 mydatN <- mydatN %>%
   mutate(
     MainDir = ifelse(!is.na(Country), Country, "Other"),
-    Sub = Region)
+    SubDir = Newcity)
 
 
 # Defining Directories and Sub-Directories
-# triggers for subdirectory in final name 
+# triggers for SubDirdirectory in final name 
 
 mydatN <- mydatN %>%
-   mutate(Sub = case_when(NbPicturesDay > NbPicturesDayMax ~ name,
-                          NbPicturesRegion > NbPicturesRegionMax ~ name, 
-                             .default =  Sub)
+   mutate(SubDir = case_when(NbPicturesDay > NbPicturesDayMax ~ paste0(Month,"_", Newcity),
+                          NbPicturesCity > NbPicturesCityMax ~ paste0(Month,"_", Newcity),
+                             .default =  SubDir)
    )
-  
-# Definition of Directories and Sub
+
+
+# Definition of Directories and SubDir
 
 mydatN <-  mydatN  %>%
   mutate(
         Newdir = case_when(
-           is.na(Sub) ~ paste0(Year, "_", MainDir),
-           (!is.na(Sub) &  Sub !="" ) ~ paste0(Year, "_", MainDir, "/", Sub, "/"), 
+           is.na(SubDir) ~ paste0(Year, "_", MainDir),
+           (!is.na(SubDir) &  SubDir !="" ) ~ paste0(Year, "_", MainDir, "/", SubDir, "/"), 
             .default =  paste0(Year, "_", MainDir, "/")
             )
           )
