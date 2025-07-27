@@ -214,7 +214,7 @@ mydat <- mydat %>%
 
 We use package **tidygeocoder** (1.0.5) for getting this information 
 
-```{r}
+```{r OSMAPI}
 # Using library(tidygeocoder)
 # https://jessecambon.github.io/tidygeocoder/articles/tidygeocoder.html
 
@@ -240,7 +240,7 @@ if (file.exists(osmfileName)) {
 ```
 
 
-```{r}
+```{r OSMCity}
 # Extracting OSM data and merging
 revdata <- osmdata %>%
   select( "lat", "long",  "country", "country_code", "city", "town" ,"type", "place_id", "name",  "class", "type", "village", "municipality", "county",   "state", "neighbourhood", "suburb", "leisure", "address")%>%
