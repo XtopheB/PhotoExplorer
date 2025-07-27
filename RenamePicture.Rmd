@@ -83,7 +83,7 @@ if (!dir.exists(ToDir)) {
 ```
 
 
-```{r paths}
+```{r longpath}
 # List of  files that will be renamed
 files <- list.files(path = SourceDir, pattern = mypattern,  full.names = TRUE)
 # Count the number of files
@@ -476,7 +476,7 @@ SourceText <- gsub("c__", "", SourceText)
 
 
 toto <- mystat
-write.xlsx(,
+write.xlsx(mystat,
            file=paste(ToDir,"Log-",SourceText,"-N=", nrow(mydatN), "-(", ymd(Sys.Date()),").xlsx", sep=""))
 
 ```
@@ -567,7 +567,7 @@ message <- ifelse( NbCommon == nrow(mydatN),
 
 # Interactive map with leaflet
 
-```{r}
+```{r eval=FALSE, include=FALSE}
 # text to be displayed on pop-ups
 
 center <- "<div style='text-align:center'>"
@@ -598,11 +598,11 @@ encode_img <- function(path) {
 
 
 ## Very CPU intensive: Use with subset !!
-MySampling <- 2 # in percent
+MySampling <- 10 # in percent
 
 sampled_data <- mydatN %>%
   group_by(NewDir) %>%
-  slice_sample(prop = MySampling/100) %>%  # X% from each directory
+  slice_sample(prop = round(MySampling/100, 2)) %>%  # X% from each directory
   ungroup()
 
 
@@ -610,13 +610,15 @@ sampled_data <- mydatN %>%
 sampled_data <-sampled_data %>%
   mutate(
     FullNewDir = paste0(ToDir,NewDir),
+    FullNewPath = paste0(FullNewDir, NewName),
     encoded_img = sapply(file.path(FullNewDir, NewName), encode_img),
     popup_html = paste0(
       "<div style='text-align:center'>",
-      
       "<b>", FileName, "</b><br>",
-      "Date=", Year, "-", Month, "<br>",
-      "<img src='", encoded_img, "' width='150'/>",
+      "Date=", Year, "-", Month, "<br><br>",
+      "Folder= ", NewDir, "<br><br>",
+      "<img src='", encoded_img, "' width='150'/><br>",
+      "<a href='file:///", FullNewPath, "' target='_blank'>Open File</a>",
       "</div>"
     )
   )
