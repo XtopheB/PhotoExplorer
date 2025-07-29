@@ -71,8 +71,14 @@ This is where I define source and destination, obviously. It is possible to use 
 # We only rename  pictures and videos
 mypattern  <- "*.jpg|*.JPG|*.PNG|*.MP4|*.MOV"
 
+
+# Directories to scan 
+
+Pictdir <- "202505__"
+FromDir <- "c:/temp/Photos/FullTest/"
+
 # Source directory
-SourceDir <-  "c:/temp/Photos/FullTest/"
+SourceDir <-  paste0(FromDir, Pictdir)
 # Destination 
 ToDir <- "c:/temp/Photos/Fulltest/Renamed/"
 
@@ -122,11 +128,12 @@ NbPicturesCityMax <- 50
 ## Extract exif info
 Once exiftool is correctly installed^[See the information on how to install [https://exiftool.org/install.html](https://exiftool.org/install.html)], one can collect all the information embedded in our pictures. Here we only collect the files with extensions *`r mypattern`*.
 
-We do this only if exif has not been done already for the same files
+We do this only if exif has not been done already for the same files.
 
 ```{r exifextraction  }
-# Construct unique exif Filename to save
-exifFileName <- paste0(SourceDir,"exif",NbFiles,".Rdata")
+###  Long Process-----
+# Construct unique exif Filename to save in main from directory
+exifFileName <- paste0(FromDir,"exif-", Pictdir,"Nb",NbFiles,".Rdata")
 
 # Listing of files
 Myfiles <- list.files(path = SourceDir,
@@ -157,9 +164,11 @@ We have now the complete information on **`r nrow(exifinfo)`** pictures, among w
 # https://www.r-bloggers.com/2016/11/extracting-exif-data-from-photos-using-r/
 # and https://www.r-bloggers.com/2016/11/create-an-interactive-web-map-with-geotagged-photos/
 
+# Sometimes "Duration" exist, sometimes not! 
+
 exifdat <- exifinfo %>%
   select(
-    SourceFile, FileName, FileType, FileSize, Duration,  FileModifyDate, DateTimeOriginal,
+    SourceFile, FileName, FileType, FileSize,   FileModifyDate, DateTimeOriginal,
     GPSLongitude, GPSLatitude, GPSAltitude) %>%
   arrange(FileModifyDate)
 
@@ -218,8 +227,11 @@ We use package **tidygeocoder** (1.0.5) for getting this information
 # Using library(tidygeocoder)
 # https://jessecambon.github.io/tidygeocoder/articles/tidygeocoder.html
 
+# this operation is also very long...
+
 # Creating OSM unique name 
-osmfileName <- paste0(SourceDir,"osmdata",NbFiles,".Rdata")
+osmfileName <- paste0(FromDir,"osmdata-",Pictdir,NbFiles,".Rdata")
+ paste0(FromDir,"exif", Pictdir,"Nb",NbFiles,".Rdata")
 
 # Check if the file exists
 if (file.exists(osmfileName)) {
@@ -236,7 +248,7 @@ if (file.exists(osmfileName)) {
   save(osmdata, file = osmfileName)
 }
   
-# this operation is also very long...
+
 ```
 
 
