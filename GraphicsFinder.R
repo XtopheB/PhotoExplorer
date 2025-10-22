@@ -3,15 +3,14 @@
 #       List of directories where to search
 # Output: Csv with list  all files and their location
 #         txt with list of directories where the files are for inclusion in LaTeX 
-# Option to Copy Grpahics: If TRUE all found graphics are copied! 
+# Option to Copy Graphics: If TRUE all found graphics are copied! 
 
 library(tidyverse)
 library(fs)
 
-
-## Latex root directory with .csv (from InLaTexGraphicFinder.R)
-main_dir <- "c:/Chris/UN-ESCAP/MyCourses2025/MLOS25/Slides/"
-latex_name <- "LectureWebinar1"
+## Latex root directory with .csv 
+main_dir <- "c:/Chris/UN-ESCAP/MyCourses2025/BigDataGender-ToT/Slides/"  # Must end with "/"
+latex_name <- "M14-StatisticalMaps"   # Without ".tex"
 
 # Csv INPUT with all graphics names
 csv_name <-paste0("AllGraphics-", latex_name,".csv")
@@ -22,6 +21,11 @@ csv_path <- paste0(main_dir,csv_name)
 # List of folders to search
 search_dirs <- c("c:/Chris/Visualisation/Presentations/Graphics",
                  "c:/Gitmain/MLCourse/UNML",
+                 "c:/Chris/UN-ESCAP/MyCourses2022/MLOS2022",
+                 "c:/Chris/UN-ESCAP/MyCourses/DataViz",
+                 "c:/Chris/UN-ESCAP/MyCourses2023/", 
+                 "c:/Chris/UN-ESCAP/MyCourses2024/", 
+                 "c:/Chris/UN-ESCAP/MyCourses2025/", 
                  "c:/Chris/UN-ESCAP"
 )
 
@@ -30,11 +34,11 @@ MyDepth <- 4
 
 # Option to Copy graphics
 
-CopyGraphics <- FALSE
+CopyGraphics <- TRUE
 
 if(CopyGraphics) {
   # Destination folder where matching Graphics should be copied
-  destination_folder <-  paste0(main_dir,"Graphics")
+  destination_folder <-  paste0(main_dir,"Graphics3")
 
   # Create destination folder if it doesn't exist
   if (!dir_exists(destination_folder)) {
@@ -48,12 +52,11 @@ file_list <- read_csv(csv_path, col_names = FALSE) %>%
   str_trim()   # Remove leading/trailing spaces
 
 
-
-# 🔄 Gather all files from subfolders (max depth = 2)
+# Gather all files from subfolders (max depth = 2)
 all_files <- map(search_dirs, ~ dir_ls(.x, recurse = TRUE, type = "file", depth = MyDepth)) %>%
   flatten_chr()
 
-# 🔍 Match requested files
+# Match requested files
 search_results <- tibble(Requested = file_list) %>%
   mutate(
     MatchPath = map_chr(Requested, function(fname) {
@@ -65,9 +68,7 @@ search_results <- tibble(Requested = file_list) %>%
     FoundInFolder = if_else(Found, path_dir(MatchPath), NA_character_)
   )
 
-
 ### List of unique folder paths from found results
-
 unique_folders <- search_results %>%
   filter(Found) %>%
   distinct(FoundInFolder) %>%
@@ -80,7 +81,7 @@ formatted_paths <- paste0("{", unique_folders, "/}")
 write_lines(formatted_paths, paste0(main_dir,"ListGraphicsFolders.txt"))
 
 # 🖨️ Console confirmation
-cat("📄 Unique folders saved to:",main_dir, "\n")
+cat(" Unique folders saved to:",main_dir, "\n")
 
 # Extract found files
 found_files <- search_results %>%
@@ -98,7 +99,7 @@ if (length(not_found_files) > 0) {
   cat("The following", NbNotFound , "files were not found:\n")
   cat(paste("-", not_found_files), sep = "\n")
 } else {
-  cat("🎉 All files were found in the search directories and copied!\n")
+  cat(" All files were found in the search directories and copied!\n")
 }
 
 # Save results including missing files
@@ -116,5 +117,5 @@ if(CopyGraphics) {
   )
   
   cat(" ____")
-  # cat( "✅ Copied", length(found_files), "files (over ",length(file_list), ") to", destination_folder)
+  # cat( "Copied", length(found_files), "files (over ",length(file_list), ") to", destination_folder)
 }
