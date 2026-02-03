@@ -14,11 +14,11 @@ library(fs)
 ## Latex root directory 
 main_dir <- "c:/Chris/UN-ESCAP/MyCourses2026/DataScienceForOS-Bhutan/Slides/"  # Must end with "/"
 
-# Destination CSV output
-output_csv <- paste0(main_dir,"AllGraphics.csv")
-
 # Find all .tex files in the main directory
 tex_files <- list.files(main_dir, pattern = "\\.tex$", full.names = TRUE)
+
+# Destination CSV output
+output_csv <- paste0(main_dir,"AllGraphics.csv")
 
 
 # Function to extract graphics from a single LaTeX file

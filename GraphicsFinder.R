@@ -20,15 +20,17 @@ csv_path <- paste0(main_dir,csv_name)
 # List of folders to search
 search_dirs <- c("c:/Chris/Visualisation/Graphics",
                  "c:/Chris/UN-ESCAP/Misc-ESCAP/Conferences/2025-ICDSOS/Slides/Graphics",
+                 "c:/Chris/UN-ESCAP/SIAP-E-learning/Resources/OpenScience/",
                  "c:/Gitmain/MLCourse/UNML",
+                 "c:/GitMain/RAP/RAP-Course/images/",
                  "c:/Chris/UN-ESCAP/MyCourses2022/MLOS2022",
                  "c:/Chris/UN-ESCAP/MyCourses/DataViz",
                  "c:/Chris/UN-ESCAP/MyCourses2023/", 
                  "c:/Chris/UN-ESCAP/MyCourses2024/", 
                  "c:/Chris/UN-ESCAP/MyCourses2025/", 
                  "c:/Chris/UN-ESCAP"
-                 
 )
+
 
 # Depth of search 
 MyDepth <- 4
@@ -118,5 +120,5 @@ if(CopyGraphics) {
   )
   
   cat(" ____")
-  # cat( "Copied", length(found_files), "files (over ",length(file_list), ") to", destination_folder)
+  cat( "Copied", length(found_files), "files (over ",length(file_list), ") to", destination_folder)
 }
