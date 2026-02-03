@@ -13,11 +13,9 @@ library(fs)
 
 ## Latex root directory 
 main_dir <- "c:/Chris/UN-ESCAP/MyCourses2026/DataScienceForOS-Bhutan/Slides/"  # Must end with "/"
-# latex_name <- "IAOS-HowToLieWithGraphics"   # Without ".tex"
 
 # Destination CSV output
 output_csv <- paste0(main_dir,"AllGraphics.csv")
-
 
 # Find all .tex files in the main directory
 tex_files <- list.files(main_dir, pattern = "\\.tex$", full.names = TRUE)
@@ -56,10 +54,8 @@ graphics_df <- tibble(FileName = all_graphics) %>%
 # Write to CSV
 write_csv(graphics_df, output_csv, col_names = FALSE)
 
-cat("Processed", length(tex_files), ".tex files\n")
-cat("Found", nrow(graphics_df), "unique graphics\n")
-cat("Results saved to:", output_csv, "\n")
-
+cat("There are", length(tex_files), ".tex files in the directory\n")
+cat("Found", nrow(graphics_df), "unique graphics. Saved to:", output_csv, "\n")
 
 
 
