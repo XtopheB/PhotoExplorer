@@ -8,42 +8,58 @@
 
 library(tidyverse)
 library(stringi)
+library(fs)
 
 
-## Latex root directory with .csv 
-main_dir <- "c:/Chris/UN-ESCAP/MyCourses2025/BigDataGender-ToT/Slides/"  # Must end with "/"
-latex_name <- "M14-StatisticalMaps"   # Without ".tex"
-
-# Path to sourceLaTeX file
-latex_file <-  paste0(main_dir,latex_name,".tex")
+## Latex root directory 
+main_dir <- "c:/Chris/UN-ESCAP/MyCourses2026/DataScienceForOS-Bhutan/Slides/"  # Must end with "/"
+# latex_name <- "IAOS-HowToLieWithGraphics"   # Without ".tex"
 
 # Destination CSV output
-output_csv <- paste0(main_dir,"AllGraphics-", latex_name,".csv")
+output_csv <- paste0(main_dir,"AllGraphics.csv")
 
 
-# Read the LaTeX file line by line
-lines <- read_lines(latex_file)
-latex_text <- paste(lines, collapse = "\n")
+# Find all .tex files in the main directory
+tex_files <- list.files(main_dir, pattern = "\\.tex$", full.names = TRUE)
 
-# Extract all lines that contain \includegraphics
-graphics_lines <- lines[str_detect(lines, "\\\\includegraphics")]
 
-# Regex pattern to match \includegraphics with optional arguments
-# Correct pattern (fully escaped)
-pattern <- "\\\\includegraphics(?:\\[[^\\]]*\\])?\\{([^}]*)\\}"
+# Function to extract graphics from a single LaTeX file
+extract_graphics <- function(latex_file) {
+  # Read the LaTeX file line by line
+  lines <- read_lines(latex_file)
+  latex_text <- paste(lines, collapse = "\n")
+  
+  # Regex pattern to match \includegraphics with optional arguments
+  pattern <- "\\\\includegraphics(?:\\[[^\\]]*\\])?\\{([^}]*)\\}"
+  
+  # Extract file names
+  matches <- str_match_all(latex_text, pattern)[[1]]
+  
+  if (nrow(matches) > 0) {
+    graphic_names <- matches[, 2]
+    return(graphic_names)
+  } else {
+    return(character(0))
+  }
+}
 
-# Extract file names
-matches <- str_match_all(latex_text, pattern)[[1]]
-graphic_names <- matches[,2]
-
+#  Extract graphics from all .tex files 
+all_graphics <- tex_files %>%
+  map(extract_graphics) %>%
+  flatten_chr()
 
 # Clean and save
-graphics_df <- tibble(FileName = graphic_names) %>%
+graphics_df <- tibble(FileName = all_graphics) %>%
   distinct() %>%
   filter(!is.na(FileName))
 
 # Write to CSV
 write_csv(graphics_df, output_csv, col_names = FALSE)
 
-# Summary
-cat("📄 Found", nrow(graphics_df), "graphics used in LaTeX.\n Saved to:", main_dir, "Graphics \n")
+cat("Processed", length(tex_files), ".tex files\n")
+cat("Found", nrow(graphics_df), "unique graphics\n")
+cat("Results saved to:", output_csv, "\n")
+
+
+
+
