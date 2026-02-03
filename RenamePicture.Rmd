@@ -74,7 +74,7 @@ mypattern  <- "*.jpg|*.JPG|*.PNG|*.MP4|*.MOV"
 
 # Directories to scan 
 
-Pictdir <- "202505__"
+Pictdir <- "202503__"
 FromDir <- "c:/temp/Photos/FullTest/"
 
 # Source directory
@@ -230,7 +230,7 @@ We use package **tidygeocoder** (1.0.5) for getting this information
 # this operation is also very long...
 
 # Creating OSM unique name 
-osmfileName <- paste0(FromDir,"osmdata-",Pictdir,NbFiles,".Rdata")
+osmfileName <- paste0(FromDir,"osmdata-",Pictdir,"Nb",NbFiles,".Rdata")
  paste0(FromDir,"exif", Pictdir,"Nb",NbFiles,".Rdata")
 
 # Check if the file exists
