@@ -9,17 +9,17 @@ library(tidyverse)
 library(fs)
 
 ## Latex root directory with .csv 
-main_dir <- "c:/Chris/UN-ESCAP/MyCourses2025/BigDataGender-ToT/Slides/"  # Must end with "/"
-latex_name <- "M14-StatisticalMaps"   # Without ".tex"
+main_dir <- "c:/Chris/UN-ESCAP/MyCourses2026/DataScienceForOS-Bhutan/Slides/"  # Must end with "/"
 
 # Csv INPUT with all graphics names
-csv_name <-paste0("AllGraphics-", latex_name,".csv")
+csv_name <-paste0("AllGraphics.csv")
  
 # Full path for csv with files to search
 csv_path <- paste0(main_dir,csv_name)
 
 # List of folders to search
-search_dirs <- c("c:/Chris/Visualisation/Presentations/Graphics",
+search_dirs <- c("c:/Chris/Visualisation/Graphics",
+                 "c:/Chris/UN-ESCAP/Misc-ESCAP/Conferences/2025-ICDSOS/Slides/Graphics",
                  "c:/Gitmain/MLCourse/UNML",
                  "c:/Chris/UN-ESCAP/MyCourses2022/MLOS2022",
                  "c:/Chris/UN-ESCAP/MyCourses/DataViz",
@@ -27,6 +27,7 @@ search_dirs <- c("c:/Chris/Visualisation/Presentations/Graphics",
                  "c:/Chris/UN-ESCAP/MyCourses2024/", 
                  "c:/Chris/UN-ESCAP/MyCourses2025/", 
                  "c:/Chris/UN-ESCAP"
+                 
 )
 
 # Depth of search 
@@ -38,7 +39,7 @@ CopyGraphics <- TRUE
 
 if(CopyGraphics) {
   # Destination folder where matching Graphics should be copied
-  destination_folder <-  paste0(main_dir,"Graphics3")
+  destination_folder <-  paste0(main_dir,"Graphics")
 
   # Create destination folder if it doesn't exist
   if (!dir_exists(destination_folder)) {
@@ -81,7 +82,7 @@ formatted_paths <- paste0("{", unique_folders, "/}")
 write_lines(formatted_paths, paste0(main_dir,"ListGraphicsFolders.txt"))
 
 # 🖨️ Console confirmation
-cat(" Unique folders saved to:",main_dir, "\n")
+cat(" Step1: Unique folders saved to:",main_dir, "\n")
 
 # Extract found files
 found_files <- search_results %>%
@@ -103,15 +104,15 @@ if (length(not_found_files) > 0) {
 }
 
 # Save results including missing files
-write_csv(tibble(search_results), paste0(main_dir,"AllFiles- NotFound-",NbNotFound,"-",latex_name, ".csv"))
+write_csv(tibble(search_results), paste0(main_dir,"AllFiles- NotFound=",NbNotFound,".csv"))
 
 ###  Option if copy Graphics is TRUE
 if(CopyGraphics) {
-  
+  search_found <- subset(search_results, Found =="TRUE")
   # Copy files
   walk2(
-    file.path(search_results$FoundInFolder, search_results$Requested),  # source
-    file.path(destination_folder, search_results$Requested),            # destination
+    file.path(search_found$FoundInFolder, search_found$Requested),  # source
+    file.path(destination_folder, search_found$Requested),            # destination
     file_copy,
     overwrite = TRUE
   )
