@@ -35,21 +35,24 @@ extract_graphics <- function(latex_file) {
   
   if (nrow(matches) > 0) {
     graphic_names <- matches[, 2]
-    return(graphic_names)
+    # Return a tibble with both latex file and graphic names
+    return(tibble(
+      LaTeXFile = basename(latex_file),
+      GraphicFile = graphic_names
+    ))
   } else {
-    return(character(0))
+    return(tibble(LaTeXFile = character(0), GraphicFile = character(0)))
   }
 }
 
-#  Extract graphics from all .tex files 
+# Extract graphics from all .tex files 
 all_graphics <- tex_files %>%
-  map(extract_graphics) %>%
-  flatten_chr()
+  map_dfr(extract_graphics)  # Use map_dfr to bind rows into a data frame
 
-# Clean and save
-graphics_df <- tibble(FileName = all_graphics) %>%
+# Clean and save (optional: keep duplicates to see which files use same graphics)
+graphics_df <- all_graphics %>%
   distinct() %>%
-  filter(!is.na(FileName))
+  filter(!is.na(GraphicFile))
 
 # Write to CSV
 write_csv(graphics_df, output_csv, col_names = FALSE)

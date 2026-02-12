@@ -41,7 +41,7 @@ CopyGraphics <- TRUE
 
 if(CopyGraphics) {
   # Destination folder where matching Graphics should be copied
-  destination_folder <-  paste0(main_dir,"Graphics")
+  destination_folder <-  paste0(main_dir,"Graphics2")
 
   # Create destination folder if it doesn't exist
   if (!dir_exists(destination_folder)) {
@@ -51,7 +51,7 @@ if(CopyGraphics) {
 }  
 # Read the CSV file 
 file_list <- read_csv(csv_path, col_names = FALSE) %>%
-  pull(1) %>% # Assuming filenames are in the first column
+  pull(2) %>% # Assuming filenames are in the second column
   str_trim()   # Remove leading/trailing spaces
 
 
@@ -59,7 +59,7 @@ file_list <- read_csv(csv_path, col_names = FALSE) %>%
 all_files <- map(search_dirs, ~ dir_ls(.x, recurse = TRUE, type = "file", depth = MyDepth)) %>%
   flatten_chr()
 
-# Match requested files
+# Match requested files function
 search_results <- tibble(Requested = file_list) %>%
   mutate(
     MatchPath = map_chr(Requested, function(fname) {
